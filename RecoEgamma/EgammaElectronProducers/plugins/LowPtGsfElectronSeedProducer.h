@@ -123,35 +123,6 @@ class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::
   std::string builder_;
   bool passThrough_;
   bool usePfTracks_;
-  
-  class Debug {
-  public:
-    int success = 0;
-    int track = 0;
-    int gsf = 0;
-    float min = +1.e6;
-    float max = -1.e6;
-    void init() {
-      success = 0;
-      track = 0;
-      gsf = 0;
-      min = +1.e6;
-      max = -1.e6;
-    }
-    void preid(reco::PreId id) {
-      if ( id.mva() < min ) { min = id.mva(0); }
-      if ( id.mva() > max ) { max = id.mva(0); }
-    }
-    void print() {
-      std::cout << "Debug:" << std::endl
-		<< " success: " << success << std::endl
-  		<< " track: " << track << std::endl
-		<< " gsf: " << gsf << std::endl
-		<< " min: " << min << std::endl 
-		<< " max: " << max << std::endl;
-    }
-  } debug_;
-
 
 };
 
