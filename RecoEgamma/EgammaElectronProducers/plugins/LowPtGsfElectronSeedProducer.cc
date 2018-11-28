@@ -16,9 +16,7 @@
 #include "DataFormats/Math/interface/deltaPhi.h"
 #include "DataFormats/Math/interface/deltaR.h"
 #include "DataFormats/Math/interface/LorentzVector.h"
-#include "DataFormats/ParticleFlowReco/interface/PFRecTrack.h"
 #include "DataFormats/ParticleFlowReco/interface/PFTrajectoryPoint.h"
-#include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackBase.h"
 #include "FastSimulation/BaseParticlePropagator/interface/BaseParticlePropagator.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
@@ -38,25 +36,20 @@
 //
 LowPtGsfElectronSeedProducer::LowPtGsfElectronSeedProducer( const edm::ParameterSet& conf, 
 							    const lowptgsfeleseed::HeavyObjectCache* ) :
-  tracks_(),
-  ecalClusters_(),
-  hcalClusters_(),
-  pfTracks_(),
-  fitter_(""),
-  smoother_(""),
-  builder_(""),
-  passThrough_(false),
-  usePfTracks_(false)
+  kfTracks_{consumes<reco::TrackCollection>(conf.getParameter<edm::InputTag>("tracks"))},
+  pfTracks_{consumes<reco::PFRecTrackCollection>(conf.getParameter<edm::InputTag>("pfTracks"))},
+  ecalClusters_{consumes<reco::PFClusterCollection>(conf.getParameter<edm::InputTag>("ecalClusters"))},
+  hcalClusters_{consumes<reco::PFClusterCollection>(conf.getParameter<edm::InputTag>("hcalClusters"))},
+  ebRecHits_{consumes<EcalRecHitCollection>(conf.getParameter<edm::InputTag>("EBRecHits"))},
+  eeRecHits_{consumes<EcalRecHitCollection>(conf.getParameter<edm::InputTag>("EERecHits"))},
+  rho_(consumes<double>(conf.getParameter<edm::InputTag>("rho"))),
+  beamSpot_(consumes<reco::BeamSpot>(conf.getParameter<edm::InputTag>("BeamSpot"))),
+  fitter_(conf.getParameter<std::string>("Fitter")),
+  smoother_(conf.getParameter<std::string>("Smoother")),
+  builder_(conf.getParameter<std::string>("TTRHBuilder")),
+  passThrough_(conf.getParameter<bool>("PassThrough")),
+  usePfTracks_(conf.getParameter<bool>("UsePfTracks"))
 {
-  tracks_ = consumes<reco::TrackCollection>( conf.getParameter<edm::InputTag>("tracks") );
-  ecalClusters_ = consumes<reco::PFClusterCollection>( conf.getParameter<edm::InputTag>("ecalClusters") );
-  hcalClusters_ = consumes<reco::PFClusterCollection>( conf.getParameter<edm::InputTag>("hcalClusters") );
-  pfTracks_ = consumes<reco::PFRecTrackCollection>( conf.getParameter<edm::InputTag>("pfTracks") );
-  fitter_ = conf.getParameter<std::string>("Fitter");
-  smoother_ = conf.getParameter<std::string>("Smoother");
-  builder_ = conf.getParameter<std::string>("TTRHBuilder");
-  passThrough_ = conf.getParameter<bool>("PassThrough");
-  usePfTracks_ = conf.getParameter<bool>("UsePfTracks");
   produces<reco::ElectronSeedCollection>();
   produces<reco::PreIdCollection>();
   produces<reco::PreIdCollection>("HCAL");
@@ -83,170 +76,194 @@ void LowPtGsfElectronSeedProducer::produce( edm::Event& event,
   // Debug info
   debug_.init();
 
+  // Products
   auto seeds = std::make_unique<reco::ElectronSeedCollection>();
   auto ecalPreIds = std::make_unique<reco::PreIdCollection>();
   auto hcalPreIds = std::make_unique<reco::PreIdCollection>();
-    
+  
+  // KF tracks
+  edm::Handle<reco::TrackCollection> kfTracks;
+  event.getByToken(kfTracks_, kfTracks);
+
+  // PF tracks
+  edm::Handle<reco::PFRecTrackCollection> pfTracks;
+  event.getByToken(pfTracks_, pfTracks);
+
+  // ECAL clusters
   edm::Handle<reco::PFClusterCollection> ecalClusters;
   event.getByToken(ecalClusters_,ecalClusters);
 
+  // HCAL clusters (only used with PF tracks)
   edm::Handle<reco::PFClusterCollection> hcalClusters;
-  if ( usePfTracks_ ) { event.getByToken(hcalClusters_,hcalClusters); }
+  event.getByToken(hcalClusters_,hcalClusters);
 
-  edm::Handle<reco::TrackCollection> kfTracks;
-  event.getByToken(tracks_, kfTracks);
-
-  edm::Handle<reco::PFRecTrackCollection> pfTracks;
-  if ( usePfTracks_ ) { event.getByToken(pfTracks_,pfTracks); }
-
-  if ( usePfTracks_ ) {  
-    withPfTracks(pfTracks,ecalClusters,hcalClusters,*seeds,*ecalPreIds,*hcalPreIds,setup); 
+  if ( usePfTracks_ ) { 
+    loop(pfTracks, // PF tracks
+	 ecalClusters,
+	 hcalClusters,
+	 *seeds,
+	 *ecalPreIds,
+	 *hcalPreIds,
+	 event,
+	 setup);
   } else { 
-    withKfTracks(kfTracks,ecalClusters,*seeds,*ecalPreIds,setup);
+    loop(kfTracks, // KF tracks
+	 ecalClusters,
+	 hcalClusters,
+	 *seeds,
+	 *ecalPreIds,
+	 *hcalPreIds,
+	 event,
+	 setup);
   }
 
   event.put(std::move(seeds));
   event.put(std::move(ecalPreIds));
   event.put(std::move(hcalPreIds),"HCAL");
-
+  
   debug_.print();
-
+  
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::withPfTracks( edm::Handle<reco::PFRecTrackCollection>& pfTracks,
-						 edm::Handle<reco::PFClusterCollection>& ecalClusters,
-						 edm::Handle<reco::PFClusterCollection>& hcalClusters,
-						 reco::ElectronSeedCollection& seeds,
-						 reco::PreIdCollection& ecalPreIds,
-						 reco::PreIdCollection& hcalPreIds,
-						 const edm::EventSetup& setup ) 
-{
+// Return reco::Track from edm::Ref<T>
 
+reco::TrackRef LowPtGsfElectronSeedProducer::getBaseRef( edm::Handle< std::vector<reco::Track> > handle, int idx ) const 
+{
+  return reco::TrackRef(handle,idx);
+}
+
+reco::TrackRef LowPtGsfElectronSeedProducer::getBaseRef( edm::Handle< std::vector<reco::PFRecTrack> > handle, int idx ) const
+{
+  return reco::PFRecTrackRef(handle,idx)->trackRef();
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// Template function, instantiated for both reco::Tracks and reco::PFRecTracks 
+template <typename T>
+void LowPtGsfElectronSeedProducer::loop( const edm::Handle< std::vector<T> >& handle, // PF or KF tracks
+					 edm::Handle<reco::PFClusterCollection>& ecalClusters,
+					 edm::Handle<reco::PFClusterCollection>& hcalClusters,
+					 reco::ElectronSeedCollection& seeds,
+					 reco::PreIdCollection& ecalPreIds, 
+					 reco::PreIdCollection& hcalPreIds,
+					 edm::Event& event,
+					 const edm::EventSetup& setup )
+{
+  
+  // Pileup
+  edm::Handle<double> rho;
+  event.getByToken(rho_,rho);
+  
+  // Beam spot
+  edm::Handle<reco::BeamSpot> spot;
+  event.getByToken(beamSpot_,spot);
+  
+  // Utility to access to shower shape vars
+  noZS::EcalClusterLazyTools ecalTools(event,setup,ebRecHits_,eeRecHits_);
+  
+  // Ensure each cluster is only matched once to a track
   std::vector<int> matchedEcalClusters;
   std::vector<int> matchedHcalClusters;
+  
+  // Iterate through (PF or KF) tracks
+  for ( unsigned int itrk = 0; itrk < handle.product()->size(); itrk++ ) {
 
-  for ( unsigned int itrk = 0; itrk < pfTracks.product()->size(); itrk++ ) {
 
-    reco::PFRecTrackRef pfTrackRef(pfTracks,itrk);
-    reco::TrackRef trackRef = pfTrackRef->trackRef();
+    edm::Ref< std::vector<T> > templatedRef(handle,itrk); // TrackRef or PFRecTrackRef
+    reco::TrackRef trackRef = getBaseRef(handle,itrk);
+
     if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
-    debug_.track++;
 
+    debug_.track++;
+    
     // Create ElectronSeed 
     reco::ElectronSeed seed( *(trackRef->seedRef()) );
     seed.setCtfTrack(trackRef);
     
     // Create PreIds
-    reco::PreId ecalPreId;
-    reco::PreId hcalPreId;
+    unsigned int nModels = globalCache()->modelNames().size();
+    reco::PreId ecalPreId(nModels);
+    reco::PreId hcalPreId(nModels);
 
     // Add track ref to PreId
     ecalPreId.setTrack(trackRef);
     hcalPreId.setTrack(trackRef);
 
-    // Add variables related to track-ECAL and track-HCAL matching to PreId
-    propagatePfTrackToEcal(ecalPreId,pfTrackRef,ecalClusters,matchedEcalClusters);
-    propagatePfTrackToHcal(hcalPreId,pfTrackRef,hcalClusters,matchedHcalClusters);
-
+    // Add Track-Calo matching variables to PreIds
+    propagateTrackToCalo(templatedRef,
+			 ecalClusters,
+			 hcalClusters,
+			 matchedEcalClusters,
+			 matchedHcalClusters,
+			 ecalPreId,
+			 hcalPreId );
+    
     // Add variables related to GSF tracks to PreId
     lightGsfTracking(ecalPreId,trackRef,seed,setup); 
 
     // Decision based on BDT 
-    bool unbiased = globalCache()->evalUnbiased(ecalPreId,hcalPreId);
-    bool ptbiased = globalCache()->evalPtBiased(ecalPreId,hcalPreId);
-    bool result = passThrough_ || ( unbiased || ptbiased );
+    bool result = decision(templatedRef,ecalPreId,hcalPreId,*rho,*spot,ecalTools);
 
+    debug_.preid(ecalPreId);
+    
     // Store PreId
     ecalPreIds.push_back(ecalPreId);
     hcalPreIds.push_back(hcalPreId);
-
+    
     // If fails BDT, do not store seed
     if ( !result ) { continue; }
     
     seeds.push_back(seed);
 
   }
-
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::withKfTracks( edm::Handle<reco::TrackCollection>& kfTracks,
-						 edm::Handle<reco::PFClusterCollection>& clusters,
-						 reco::ElectronSeedCollection& seeds,
-						 reco::PreIdCollection& preIds,
-						 const edm::EventSetup& setup ) 
+// Template instantiation for reco::Tracks
+template 
+void LowPtGsfElectronSeedProducer::loop<reco::Track>( const edm::Handle< std::vector<reco::Track> >&,
+						      edm::Handle<reco::PFClusterCollection>& ecalClusters,
+						      edm::Handle<reco::PFClusterCollection>& hcalClusters,
+						      reco::ElectronSeedCollection& seeds,
+						      reco::PreIdCollection& ecalPreIds, 
+						      reco::PreIdCollection& hcalPreIds,
+						      edm::Event&,
+						      const edm::EventSetup& );
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// Template instantiation for reco::PFRecTracks
+template 
+void LowPtGsfElectronSeedProducer::loop<reco::PFRecTrack>( const edm::Handle< std::vector<reco::PFRecTrack> >&,
+							   edm::Handle<reco::PFClusterCollection>& ecalClusters,
+							   edm::Handle<reco::PFClusterCollection>& hcalClusters,
+							   reco::ElectronSeedCollection& seeds,
+							   reco::PreIdCollection& ecalPreIds, 
+							   reco::PreIdCollection& hcalPreIds,
+							   edm::Event&,
+							   const edm::EventSetup& );
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// Loops through both ECAL and HCAL clusters
+void LowPtGsfElectronSeedProducer::propagateTrackToCalo( const reco::PFRecTrackRef& pfTrackRef,
+							 const edm::Handle<reco::PFClusterCollection>& ecalClusters,
+							 const edm::Handle<reco::PFClusterCollection>& hcalClusters,
+							 std::vector<int>& matchedEcalClusters,
+							 std::vector<int>& matchedHcalClusters,
+							 reco::PreId& ecalPreId, 
+							 reco::PreId& hcalPreId ) 
 {
-
-  for ( unsigned int itrk = 0; itrk < kfTracks.product()->size(); itrk++ ) {
-
-    reco::TrackRef trackRef(kfTracks,itrk);
-    if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
-    debug_.track++;
-
-    // Create ElectronSeed 
-    reco::ElectronSeed seed( *(trackRef->seedRef()) );
-    seed.setCtfTrack(trackRef);
-    
-    // Create PreId
-    reco::PreId preId;
-
-    // Add track ref to PreId
-    preId.setTrack(trackRef);
-
-    // Add variables related to track-ECAL matching to PreId
-    propagateKfTrackToEcal(preId,trackRef,clusters);
-
-    // Add variables related to GSF tracks to PreId
-    lightGsfTracking(preId,trackRef,seed,setup); 
-
-    // Decision based on BDT 
-    reco::PreId hcal;
-    bool unbiased = globalCache()->evalUnbiased(preId,hcal);
-    bool ptbiased = globalCache()->evalPtBiased(preId,hcal);
-    bool result = passThrough_ || ( unbiased || ptbiased );
-
-    // Store PreId
-    preIds.push_back(preId);
-
-    // If fails BDT, do not store seed
-    if ( !result ) { continue; }
-    
-    seeds.push_back(seed);
-
-  }
-
+  propagateTrackToCalo( pfTrackRef, ecalClusters, matchedEcalClusters, ecalPreId, true );
+  propagateTrackToCalo( pfTrackRef, hcalClusters, matchedHcalClusters, hcalPreId, false );
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::propagatePfTrackToEcal( reco::PreId& preId,
-							   const reco::PFRecTrackRef& pfTrackRef,
-							   const edm::Handle<reco::PFClusterCollection>& clusters,
-							   std::vector<int>& matchedClusters )
-{
-  propagatePfTrackToCalo(preId,pfTrackRef,clusters,matchedClusters,true);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::propagatePfTrackToHcal( reco::PreId& preId,
-							   const reco::PFRecTrackRef& pfTrackRef,
-							   const edm::Handle<reco::PFClusterCollection>& clusters,
-							   std::vector<int>& matchedClusters )
-{
-  propagatePfTrackToCalo(preId,pfTrackRef,clusters,matchedClusters,false);
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::propagatePfTrackToCalo( reco::PreId& preId,
-							   const reco::PFRecTrackRef& pfTrackRef,
-							   const edm::Handle<reco::PFClusterCollection>& clusters,
-							   std::vector<int>& matchedClusters,
-							   bool ecal )
+// Loops through ECAL or HCAL clusters (called twice)
+void LowPtGsfElectronSeedProducer::propagateTrackToCalo( const reco::PFRecTrackRef& pfTrackRef,
+							 const edm::Handle<reco::PFClusterCollection>& clusters,
+							 std::vector<int>& matched,
+							 reco::PreId& preId,
+							 bool ecal )
 {
 
   // Store info for PreId
@@ -269,7 +286,7 @@ void LowPtGsfElectronSeedProducer::propagatePfTrackToCalo( reco::PreId& preId,
     Info info;
     for ( unsigned int iclu = 0; iclu < clusters.product()->size(); iclu++ ) {
 
-      if ( std::find( matchedClusters.begin(), matchedClusters.end(), iclu ) == matchedClusters.end() ) {
+      if ( std::find( matched.begin(), matched.end(), iclu ) == matched.end() ) {
 	reco::PFClusterRef cluRef(clusters,iclu);
 
 	// Determine deta, dphi, dr
@@ -307,25 +324,38 @@ void LowPtGsfElectronSeedProducer::propagatePfTrackToCalo( reco::PreId& preId,
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//
-void LowPtGsfElectronSeedProducer::propagateKfTrackToEcal( reco::PreId& preId,
-							   const reco::TrackRef& trackRef,
-							   const edm::Handle<reco::PFClusterCollection>& ecalClusters )
+// Original implementation in GoodSeedProducer, loops over ECAL clusters only
+void LowPtGsfElectronSeedProducer::propagateTrackToCalo( const reco::TrackRef& kfTrackRef,
+							 const edm::Handle<reco::PFClusterCollection>& ecalClusters,
+							 const edm::Handle<reco::PFClusterCollection>& hcalClusters, // not used
+							 std::vector<int>& matchedEcalClusters,
+							 std::vector<int>& matchedHcalClusters, // not used
+							 reco::PreId& ecalPreId, 
+							 reco::PreId& hcalPreId /* not used */ ) 
 {
 
+  // Store info for PreId
+  struct Info {
+    reco::PFClusterRef cluRef = reco::PFClusterRef();
+    float dr2min = 1.e6;
+    float deta = 1.e6;
+    float dphi = 1.e6;
+    math::XYZPoint showerPos = math::XYZPoint(0.,0.,0.);
+  } info;
+
   // Propagate 'electron' to ECAL surface
-  float energy = sqrt( pow(0.000511,2.) + trackRef->outerMomentum().Mag2() );
-  XYZTLorentzVector mom = XYZTLorentzVector( trackRef->outerMomentum().x(),
-					     trackRef->outerMomentum().y(),
-					     trackRef->outerMomentum().z(),
+  float energy = sqrt( pow(0.000511,2.) + kfTrackRef->outerMomentum().Mag2() );
+  XYZTLorentzVector mom = XYZTLorentzVector( kfTrackRef->outerMomentum().x(),
+					     kfTrackRef->outerMomentum().y(),
+					     kfTrackRef->outerMomentum().z(),
 					     energy );
-  XYZTLorentzVector pos = XYZTLorentzVector( trackRef->outerPosition().x(),
-					     trackRef->outerPosition().y(),
-					     trackRef->outerPosition().z(),
+  XYZTLorentzVector pos = XYZTLorentzVector( kfTrackRef->outerPosition().x(),
+					     kfTrackRef->outerPosition().y(),
+					     kfTrackRef->outerPosition().z(),
 					     0. );
   math::XYZVector field(field_->inTesla(GlobalPoint(0,0,0)));
   BaseParticlePropagator particle( RawParticle(mom,pos), 0, 0, field.z() );
-  particle.setCharge(trackRef->charge());
+  particle.setCharge(kfTrackRef->charge());
   particle.propagateToEcalEntrance(false);
   if ( particle.getSuccess() == 0 ) { return; }
   debug_.success++;
@@ -336,15 +366,6 @@ void LowPtGsfElectronSeedProducer::propagateKfTrackToEcal( reco::PreId& preId,
 		       particle.vertex().z());
   // Preshower limit
   bool below_ps = pow(ecal_pos.z(),2.) > pow(2.50746495928f,2.)*ecal_pos.perp2();
-
-  // Store info for PreId
-  struct Info {
-    reco::PFClusterRef cluRef = reco::PFClusterRef();
-    float dr2min = 1.e6;
-    float deta = 1.e6;
-    float dphi = 1.e6;
-    math::XYZPoint showerPos = math::XYZPoint(0.,0.,0.);
-  } info;
   
   // Iterate through ECAL clusters 
   for ( unsigned int iclu = 0; iclu < ecalClusters.product()->size(); iclu++ ) {
@@ -381,20 +402,20 @@ void LowPtGsfElectronSeedProducer::propagateKfTrackToEcal( reco::PreId& preId,
 			ecal_pos.z() );
 
   // Set PreId content
-  preId.setECALMatchingProperties( info.cluRef,
-				   point,
-				   info.showerPos,
-				   info.deta,
-				   info.dphi,
-				   0.f, // chieta
-				   0.f, // chiphi
-				   trackRef->normalizedChi2(), // chi2
-				   info.cluRef->correctedEnergy() / std::sqrt( trackRef->innerMomentum().mag2() ) ); // E/p
-  
+  ecalPreId.setECALMatchingProperties( info.cluRef,
+				       point,
+				       info.showerPos,
+				       info.deta,
+				       info.dphi,
+				       0.f, // chieta
+				       0.f, // chiphi
+				       kfTrackRef->normalizedChi2(), // chi2
+				       info.cluRef->correctedEnergy() / std::sqrt( kfTrackRef->innerMomentum().mag2() ) ); // E/p
+
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
-//
+// Original implementation for "lightweight" GSF tracking
 bool LowPtGsfElectronSeedProducer::lightGsfTracking( reco::PreId& preId,
 						     const reco::TrackRef& trackRef,
 						     const reco::ElectronSeed& seed,
@@ -458,6 +479,40 @@ bool LowPtGsfElectronSeedProducer::lightGsfTracking( reco::PreId& preId,
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
+// Decision based on OR of outputs from list of models
+bool LowPtGsfElectronSeedProducer::decision( const reco::PFRecTrackRef& pfTrackRef,
+					     reco::PreId& ecalPreId,
+					     reco::PreId& hcalPreId,
+					     double rho,
+					     const reco::BeamSpot& spot,
+					     noZS::EcalClusterLazyTools& ecalTools )
+{
+  bool result = false;
+  for ( auto& name: globalCache()->modelNames() ) {
+    result |= globalCache()->eval(name,
+				  ecalPreId,
+				  hcalPreId,
+				  rho,
+				  spot,
+				  ecalTools);
+  }
+  return passThrough_ || result;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+// 
+bool LowPtGsfElectronSeedProducer::decision( const reco::TrackRef& kfTrackRef,
+					     reco::PreId& ecalPreId,
+					     reco::PreId& hcalPreId,
+					     double rho,
+					     const reco::BeamSpot& spot,
+					     noZS::EcalClusterLazyTools& ecalTools )
+{
+  // No implementation currently
+  return passThrough_;
+}
+ 
+//////////////////////////////////////////////////////////////////////////////////////////
 //
 void LowPtGsfElectronSeedProducer::fillDescription( edm::ParameterSetDescription& desc ) 
 {
@@ -465,13 +520,297 @@ void LowPtGsfElectronSeedProducer::fillDescription( edm::ParameterSetDescription
   desc.add<edm::InputTag>("pfTracks",edm::InputTag("lowPtGsfElePfTracks"));
   desc.add<edm::InputTag>("ecalClusters",edm::InputTag("particleFlowClusterECAL"));
   desc.add<edm::InputTag>("hcalClusters",edm::InputTag("particleFlowClusterHCAL"));
+  desc.add<edm::InputTag>("EBRecHits",edm::InputTag("reducedEcalRecHitsEB"));
+  desc.add<edm::InputTag>("EERecHits",edm::InputTag("reducedEcalRecHitsEE"));
+  desc.add<edm::InputTag>("rho",edm::InputTag("fixedGridRhoFastjetAllTmp"));
+  desc.add<edm::InputTag>("BeamSpot",edm::InputTag("offlineBeamSpot"));
   desc.add<std::string>("Fitter","GsfTrajectoryFitter_forPreId");
   desc.add<std::string>("Smoother","GsfTrajectorySmoother_forPreId");
   desc.add<std::string>("TTRHBuilder","WithAngleAndTemplate");
-  desc.add<edm::FileInPath>("UnbiasedWeights",edm::FileInPath("RecoEgamma/EgammaElectronProducers/data/BDT.xml"));
-  desc.add<edm::FileInPath>("PtBiasedWeights",edm::FileInPath("RecoEgamma/EgammaElectronProducers/data/BDT.xml"));
-  desc.add<double>("PtBiasedThreshold",1.);
-  desc.add<double>("UnbiasedThreshold",1.);
+  desc.add< std::vector<std::string> >("ModelNames",std::vector<std::string>());
+  desc.add< std::vector<std::string> >("ModelWeights",std::vector<std::string>());
+  desc.add< std::vector<double> >("ModelThrsholds",std::vector<double>());
   desc.add<bool>("PassThrough",false);
   desc.add<bool>("UsePfTracks",false);
 }
+
+//void LowPtGsfElectronSeedProducer::withPfTracks( edm::Handle<reco::PFRecTrackCollection>& pfTracks,
+//						 edm::Handle<reco::PFClusterCollection>& ecalClusters,
+//						 edm::Handle<reco::PFClusterCollection>& hcalClusters,
+//						 reco::ElectronSeedCollection& seeds,
+//						 reco::PreIdCollection& ecalPreIds,
+//						 reco::PreIdCollection& hcalPreIds,
+//						 edm::Event& event,
+//						 const edm::EventSetup& setup ) 
+//{
+//
+//  edm::Handle<double> rho;
+//  event.getByToken(rho_,rho);
+//
+//  noZS::EcalClusterLazyTools ecalTools(event,setup,ebRecHits_,eeRecHits_);
+//
+//  std::vector<int> matchedEcalClusters;
+//  std::vector<int> matchedHcalClusters;
+//
+//  for ( unsigned int itrk = 0; itrk < pfTracks.product()->size(); itrk++ ) {
+//
+//    reco::PFRecTrackRef pfTrackRef(pfTracks,itrk);
+//    reco::TrackRef trackRef = pfTrackRef->trackRef();
+//    if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
+//    debug_.track++;
+//
+//    // Create ElectronSeed 
+//    reco::ElectronSeed seed( *(trackRef->seedRef()) );
+//    seed.setCtfTrack(trackRef);
+//    
+//    // Create PreIds
+//    reco::PreId ecalPreId;
+//    reco::PreId hcalPreId;
+//
+//    // Add track ref to PreId
+//    ecalPreId.setTrack(trackRef);
+//    hcalPreId.setTrack(trackRef);
+//
+//    // Add variables related to track-ECAL and track-HCAL matching to PreId
+//    propagatePfTrackToEcal(ecalPreId,pfTrackRef,ecalClusters,matchedEcalClusters);
+//    propagatePfTrackToHcal(hcalPreId,pfTrackRef,hcalClusters,matchedHcalClusters);
+//
+//    // Add variables related to GSF tracks to PreId
+//    lightGsfTracking(ecalPreId,trackRef,seed,setup); 
+//
+//    // Decision based on BDT 
+//    bool unbiased = globalCache()->evalUnbiased(ecalPreId,hcalPreId,rho);
+//    bool ptbiased = globalCache()->evalPtBiased(ecalPreId,hcalPreId,rho);
+//    bool result = passThrough_ || ( unbiased || ptbiased );
+//
+//    // Store PreId
+//    ecalPreIds.push_back(ecalPreId);
+//    hcalPreIds.push_back(hcalPreId);
+//
+//    // If fails BDT, do not store seed
+//    if ( !result ) { continue; }
+//    
+//    seeds.push_back(seed);
+//
+//  }
+//
+//}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//
+//void LowPtGsfElectronSeedProducer::withKfTracks( edm::Handle<reco::TrackCollection>& kfTracks,
+//						 edm::Handle<reco::PFClusterCollection>& clusters,
+//						 reco::ElectronSeedCollection& seeds,
+//						 reco::PreIdCollection& preIds,
+//						 const edm::EventSetup& setup ) 
+//{
+//
+//  for ( unsigned int itrk = 0; itrk < kfTracks.product()->size(); itrk++ ) {
+//
+//    reco::TrackRef trackRef(kfTracks,itrk);
+//    if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
+//    debug_.track++;
+//
+//    // Create ElectronSeed 
+//    reco::ElectronSeed seed( *(trackRef->seedRef()) );
+//    seed.setCtfTrack(trackRef);
+//    
+//    // Create PreId
+//    reco::PreId preId;
+//
+//    // Add track ref to PreId
+//    preId.setTrack(trackRef);
+//
+//    // Add variables related to track-ECAL matching to PreId
+//    propagateKfTrackToEcal(preId,trackRef,clusters);
+//
+//    // Add variables related to GSF tracks to PreId
+//    lightGsfTracking(preId,trackRef,seed,setup); 
+//
+//    // Decision based on BDT 
+//    bool result = passThrough_ || globalCache()->eval(preId);
+//
+//    // Store PreId
+//    preIds.push_back(preId);
+//
+//    // If fails BDT, do not store seed
+//    if ( !result ) { continue; }
+//    
+//    seeds.push_back(seed);
+//
+//  }
+//
+//}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+////
+//void LowPtGsfElectronSeedProducer::propagatePfTrackToEcal( reco::PreId& preId,
+//							   const reco::PFRecTrackRef& pfTrackRef,
+//							   const edm::Handle<reco::PFClusterCollection>& clusters,
+//							   std::vector<int>& matchedClusters )
+//{
+//  propagatePfTrackToCalo(preId,pfTrackRef,clusters,matchedClusters,true);
+//}
+//
+////////////////////////////////////////////////////////////////////////////////////////////
+////
+//void LowPtGsfElectronSeedProducer::propagatePfTrackToHcal( reco::PreId& preId,
+//							   const reco::PFRecTrackRef& pfTrackRef,
+//							   const edm::Handle<reco::PFClusterCollection>& clusters,
+//							   std::vector<int>& matchedClusters )
+//{
+//  propagatePfTrackToCalo(preId,pfTrackRef,clusters,matchedClusters,false);
+//}
+//
+////////////////////////////////////////////////////////////////////////////////////////////
+////
+//void LowPtGsfElectronSeedProducer::propagatePfTrackToCalo( reco::PreId& preId,
+//							   const reco::PFRecTrackRef& pfTrackRef,
+//							   const edm::Handle<reco::PFClusterCollection>& clusters,
+//							   std::vector<int>& matchedClusters,
+//							   bool ecal )
+//{
+
+//  // Store info for PreId
+//  struct Info {
+//    reco::PFClusterRef cluRef = reco::PFClusterRef();
+//    float dr2min = 1.e6;
+//    float deta = 1.e6;
+//    float dphi = 1.e6;
+//    math::XYZPoint showerPos = math::XYZPoint(0.,0.,0.);
+//  } info;
+//  
+//  // Find closest "seed cluster" to KF track extrapolated to ECAL (or HCAL)
+//  reco::PFTrajectoryPoint point;
+//  if ( ecal ) { point = pfTrackRef->extrapolatedPoint(reco::PFTrajectoryPoint::LayerType::ECALShowerMax); }
+//  else        { point = pfTrackRef->extrapolatedPoint(reco::PFTrajectoryPoint::LayerType::HCALEntrance); }
+//
+//  if ( point.isValid() ) {
+//    if ( ecal ) debug_.success++;
+//
+//    Info info;
+//    for ( unsigned int iclu = 0; iclu < clusters.product()->size(); iclu++ ) {
+//
+//      if ( std::find( matchedClusters.begin(), matchedClusters.end(), iclu ) == matchedClusters.end() ) {
+//	reco::PFClusterRef cluRef(clusters,iclu);
+//
+//	// Determine deta, dphi, dr
+//	float deta = cluRef->positionREP().eta() - point.positionREP().eta();
+//	float dphi = reco::deltaPhi( cluRef->positionREP().phi(), point.positionREP().phi() );
+//	float dr2 = reco::deltaR2( cluRef->positionREP(), point.positionREP() );
+//
+//	if ( dr2 < info.dr2min ) {
+//	  info.dr2min = dr2;
+//	  info.cluRef = cluRef;
+//	  info.deta = deta;
+//	  info.dphi = dphi;
+//	  info.showerPos = point.position();
+//	}
+//
+//      }
+//    }
+//
+//    // Set PreId content if match found
+//    if ( info.dr2min < 1.e5 ) { 
+//      float ep = info.cluRef->correctedEnergy() / std::sqrt( pfTrackRef->trackRef()->innerMomentum().mag2() );
+//      preId.setECALMatchingProperties( info.cluRef,
+//				       point.position(), // ECAL or HCAL surface
+//				       info.showerPos, // 
+//				       info.deta,
+//				       info.dphi,
+//				       0.f, // chieta
+//				       0.f, // chiphi
+//				       pfTrackRef->trackRef()->normalizedChi2(), // chi2
+//				       ep );
+//    }
+//
+//  } // clusters
+
+//}
+
+//////////////////////////////////////////////////////////////////////////////////////////
+//
+//void LowPtGsfElectronSeedProducer::propagateKfTrackToEcal( reco::PreId& preId,
+//							   const reco::TrackRef& trackRef,
+//							   const edm::Handle<reco::PFClusterCollection>& ecalClusters )
+//{
+
+//  // Propagate 'electron' to ECAL surface
+//  float energy = sqrt( pow(0.000511,2.) + trackRef->outerMomentum().Mag2() );
+//  XYZTLorentzVector mom = XYZTLorentzVector( trackRef->outerMomentum().x(),
+//					     trackRef->outerMomentum().y(),
+//					     trackRef->outerMomentum().z(),
+//					     energy );
+//  XYZTLorentzVector pos = XYZTLorentzVector( trackRef->outerPosition().x(),
+//					     trackRef->outerPosition().y(),
+//					     trackRef->outerPosition().z(),
+//					     0. );
+//  math::XYZVector field(field_->inTesla(GlobalPoint(0,0,0)));
+//  BaseParticlePropagator particle( RawParticle(mom,pos), 0, 0, field.z() );
+//  particle.setCharge(trackRef->charge());
+//  particle.propagateToEcalEntrance(false);
+//  if ( particle.getSuccess() == 0 ) { return; }
+//  debug_.success++;
+//  
+//  // ECAL entry point for track
+//  GlobalPoint ecal_pos(particle.vertex().x(),
+//		       particle.vertex().y(),
+//		       particle.vertex().z());
+//  // Preshower limit
+//  bool below_ps = pow(ecal_pos.z(),2.) > pow(2.50746495928f,2.)*ecal_pos.perp2();
+//
+//  // Store info for PreId
+//  struct Info {
+//    reco::PFClusterRef cluRef = reco::PFClusterRef();
+//    float dr2min = 1.e6;
+//    float deta = 1.e6;
+//    float dphi = 1.e6;
+//    math::XYZPoint showerPos = math::XYZPoint(0.,0.,0.);
+//  } info;
+//  
+//  // Iterate through ECAL clusters 
+//  for ( unsigned int iclu = 0; iclu < ecalClusters.product()->size(); iclu++ ) {
+//    reco::PFClusterRef cluRef(ecalClusters,iclu);
+//
+//    // Correct ecal_pos for shower depth 
+//    double shower_depth = reco::PFCluster::getDepthCorrection(cluRef->correctedEnergy(),
+//							      below_ps,
+//							      false);
+//    GlobalPoint showerPos = ecal_pos + 
+//      GlobalVector(particle.momentum().x(),
+//		   particle.momentum().y(),
+//		   particle.momentum().z()).unit() * shower_depth;
+//
+//    // Determine deta, dphi, dr
+//    float deta = std::abs( cluRef->positionREP().eta() - showerPos.eta() );
+//    float dphi = std::abs( reco::deltaPhi( cluRef->positionREP().phi(), showerPos.phi() ));
+//    float dr2 = reco::deltaR2( cluRef->positionREP(), showerPos );
+//
+//    // Find nearest ECAL cluster
+//    if ( dr2 < info.dr2min ) {
+//      info.dr2min = dr2;
+//      info.cluRef = cluRef;
+//      info.deta = deta;
+//      info.dphi = dphi;
+//      info.showerPos = showerPos;
+//    }
+//  
+//  }
+//
+//  // Populate PreId object
+//  math::XYZPoint point( ecal_pos.x(),
+//			ecal_pos.y(),
+//			ecal_pos.z() );
+//
+//  // Set PreId content
+//  preId.setECALMatchingProperties( info.cluRef,
+//				   point,
+//				   info.showerPos,
+//				   info.deta,
+//				   info.dphi,
+//				   0.f, // chieta
+//				   0.f, // chiphi
+//				   trackRef->normalizedChi2(), // chi2
+//				   info.cluRef->correctedEnergy() / std::sqrt( trackRef->innerMomentum().mag2() ) ); // E/p
+  
+//}
