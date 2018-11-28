@@ -147,7 +147,7 @@ void LowPtGsfElectronSCProducer::produce( edm::Event& event, const edm::EventSet
   const edm::OrphanHandle<reco::CaloClusterCollection>& caloClustersH = event.put(std::move(caloClusters));
 
   // Update CaloClusterRefs in SuperClusters
-  for ( auto sc& : *superClusters ) {
+  for ( auto& sc : *superClusters ) {
     sc.setSeed( reco::CaloClusterPtr( caloClustersH, caloClustersMap[sc.seed()] ) );
     reco::CaloClusterPtrVector clusters;
     for ( auto clu : sc.clusters() ) {
