@@ -6,13 +6,25 @@ lowPtGsfElectronSeeds = cms.EDProducer(
     pfTracks = cms.InputTag("lowPtGsfElePfTracks"),
     ecalClusters = cms.InputTag("particleFlowClusterECAL"),
     hcalClusters = cms.InputTag("particleFlowClusterHCAL"),
+    EBRecHits = cms.InputTag('reducedEcalRecHitsEB'), 
+    EERecHits = cms.InputTag('reducedEcalRecHitsEE'),
+    rho = cms.InputTag('fixedGridRhoFastjetAllTmp'),
+    BeamSpot = cms.InputTag("offlineBeamSpot"),
     Fitter = cms.string('GsfTrajectoryFitter_forPreId'),
     Smoother = cms.string('GsfTrajectorySmoother_forPreId'),
     TTRHBuilder = cms.string('WithAngleAndTemplate'),
-    UnbiasedWeights = cms.FileInPath('RecoEgamma/EgammaElectronProducers/data/BDT_formatted.xml.gz'),
-    PtBiasedWeights = cms.FileInPath('RecoEgamma/EgammaElectronProducers/data/BDT_formatted.xml.gz'),
-    UnbiasedThreshold = cms.double(-0.616),
-    PtBiasedThreshold = cms.double(-0.616),
+    ModelNames = cms.vstring([
+            'unbiased',
+            'ptbiased',
+            ]),
+    ModelWeights = cms.vstring([
+            'RecoEgamma/EgammaElectronProducers/data/2018Nov01_improvedfullseeding_formatted.xml.gz',
+            'RecoEgamma/EgammaElectronProducers/data/2018Nov01_displaced_improvedfullseeding_formatted.xml.gz',
+            ]),
+    ModelThresholds = cms.vdouble([
+            {"L": 1.03,"M":1.75,"T":2.61}["L"], # unbiased
+            {"L":-0.48,"M":0.76,"T":1.83}["L"], # ptbiased
+            ]),
     PassThrough = cms.bool(False),
     UsePfTracks = cms.bool(True),
     )
