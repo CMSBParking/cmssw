@@ -71,7 +71,8 @@ lowPtGsfElectronCores.useGsfPfRecTracks = True
 from RecoEgamma.EgammaElectronProducers.lowPtGsfElectrons_cfi import *
 lowPtGsfElectrons.gsfElectronCoresTag = 'lowPtGsfElectronCores'
 lowPtGsfElectrons.seedsTag = 'lowPtGsfElectronSeeds'
-lowPtGsfElectrons.gsfPfRecTracksTag = 'lowPtGsfElePfGsfTracks'
+lowPtGsfElectrons.gsfPfRecTracksTag = ''
+lowPtGsfElectrons.useGsfPfRecTracks = False
 
 # Full Open sequence 
 lowPtGsfElectronSequence = cms.Sequence(lowPtGsfElePfTracks+
