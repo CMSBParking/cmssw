@@ -34,9 +34,7 @@ void LowPtGsfElectronProducer::produce( edm::Event& event, const edm::EventSetup
   if (1) {
 
     beginEvent(event,setup);
-    algo_->clonePreviousElectrons();
-    //algo_->completeElectrons(globalCache());
-    //algo_->addPflowInfo();
+    algo_->completeElectrons(globalCache());
     fillEvent(event);
     endEvent();
 
