@@ -19,9 +19,9 @@ lowPtGsfElectrons = cms.EDProducer("LowPtGsfElectronProducer",
     endcapRecHitCollectionTag = cms.InputTag("ecalRecHit","EcalRecHitsEE"),
     hcalTowers = cms.InputTag("towerMaker"),
     pfMvaTag =  cms.InputTag(""),
-    seedsTag = cms.InputTag("ecalDrivenElectronSeeds"),
+    seedsTag = cms.InputTag("lowPtGsfElectronSeeds"),
     beamSpotTag = cms.InputTag("offlineBeamSpot"),
-    gsfPfRecTracksTag = cms.InputTag("pfTrackElec"),
+    gsfPfRecTracksTag = cms.InputTag(""),
     vtxTag = cms.InputTag('offlinePrimaryVertices'),
     
     # backward compatibility mechanism for ctf tracks
@@ -33,7 +33,7 @@ lowPtGsfElectrons = cms.EDProducer("LowPtGsfElectronProducer",
     MaxElePtForOnlyMVA = cms.double(50.0),
                                         
     # steering
-    useGsfPfRecTracks = cms.bool(True),
+    useGsfPfRecTracks = cms.bool(False),
     applyPreselection = cms.bool(False),
     ecalDrivenEcalEnergyFromClassBasedParameterization = cms.bool(True),
     ecalDrivenEcalErrorFromClassBasedParameterization = cms.bool(True),
