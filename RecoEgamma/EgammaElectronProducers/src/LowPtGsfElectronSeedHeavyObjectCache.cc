@@ -168,21 +168,3 @@ namespace lowptgsfeleseed {
   }
 
 } // namespace lowptgsfeleseed
-
-// Features for old model
-// (float)ecal.trackRef()->pt(),
-// (float)ecal.trackRef()->eta(),
-// (float)ecal.trackRef()->phi(),
-// (float)ecal.trackRef()->p(),
-// (float)ecal.trackRef()->charge(),
-// (float)ecal.trackRef()->found(),
-// (float)ecal.trackRef()->quality(reco::TrackBase::qualityByName("highPurity")),
-// (float)sqrt( ecal.trackRef()->innerMomentum().Mag2() ),
-// (float)sqrt( ecal.trackRef()->outerMomentum().Mag2() ),
-// (float)ecal.trackRef()->normalizedChi2(),
-// (float)ecal.geomMatching()[0],
-// (float)ecal.geomMatching()[1],
-// (float)ecal.eopMatch(),
-// (float)ecal.dpt(),
-// (float)ecal.chi2Ratio(),
-// (float)ecal.gsfChi2()
