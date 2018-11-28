@@ -1,19 +1,24 @@
 #ifndef RecoEgamma_EgammaElectronProducers_LowPtGsfElectronSeedProducer_h
 #define RecoEgamma_EgammaElectronProducers_LowPtGsfElectronSeedProducer_h
 
+#include "DataFormats/BeamSpot/interface/BeamSpot.h"
 #include "DataFormats/Common/interface/Handle.h"
+#include "DataFormats/EcalRecHit/interface/EcalRecHitCollections.h"
 #include "DataFormats/EgammaReco/interface/ElectronSeed.h"
 #include "DataFormats/EgammaReco/interface/ElectronSeedFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PFCluster.h"
 #include "DataFormats/ParticleFlowReco/interface/PFClusterFwd.h"
+#include "DataFormats/ParticleFlowReco/interface/PFRecTrack.h"
 #include "DataFormats/ParticleFlowReco/interface/PFRecTrackFwd.h"
 #include "DataFormats/ParticleFlowReco/interface/PreId.h"
 #include "DataFormats/ParticleFlowReco/interface/PreIdFwd.h"
+#include "DataFormats/TrackReco/interface/Track.h"
 #include "DataFormats/TrackReco/interface/TrackFwd.h"
 #include "FWCore/Framework/interface/ESHandle.h"
 #include "FWCore/Framework/interface/stream/EDProducer.h"
 #include "FWCore/ParameterSet/interface/ParameterSetDescription.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
+#include "RecoEcal/EgammaCoreTools/interface/EcalClusterLazyTools.h"
 #include "RecoEgamma/EgammaElectronProducers/interface/LowPtGsfElectronSeedHeavyObjectCache.h"
 
 class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::GlobalCache<lowptgsfeleseed::HeavyObjectCache> >
@@ -40,52 +45,79 @@ class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::
   
   static void fillDescription( edm::ParameterSetDescription& );
   
- private:
-    
-  void withPfTracks( edm::Handle<reco::PFRecTrackCollection>&,
-		     edm::Handle<reco::PFClusterCollection>& ecalClusters,
-		     edm::Handle<reco::PFClusterCollection>& hcalClusters,
-		     reco::ElectronSeedCollection&,
-		     reco::PreIdCollection& ecal, 
-		     reco::PreIdCollection& hcal,
-		     const edm::EventSetup& );
-
-  void withKfTracks( edm::Handle<reco::TrackCollection>&,
-		     edm::Handle<reco::PFClusterCollection>& ecal,
-		     reco::ElectronSeedCollection&,
-		     reco::PreIdCollection&,
-		     const edm::EventSetup& );
-
-  void propagatePfTrackToEcal( reco::PreId&,
-			       const reco::PFRecTrackRef&,
-			       const edm::Handle<reco::PFClusterCollection>&, 
-			       std::vector<int>& matchedClusters );
+ private: // member functions
   
-  void propagatePfTrackToHcal( reco::PreId&,
-			       const reco::PFRecTrackRef&,
-			       const edm::Handle<reco::PFClusterCollection>&, 
-			       std::vector<int>& matchedClusters );
-  
-  void propagatePfTrackToCalo( reco::PreId&,
-			       const reco::PFRecTrackRef&,
-			       const edm::Handle<reco::PFClusterCollection>&, 
-			       std::vector<int>& matchedClusters, 
-			       bool ecal );
-  
-  void propagateKfTrackToEcal( reco::PreId&,
-			       const reco::TrackRef&,
-			       const edm::Handle<reco::PFClusterCollection>& ecalclusters );
+  template <typename T> void loop( const edm::Handle< std::vector<T> >& handle,
+				   edm::Handle<reco::PFClusterCollection>& ecalClusters,
+				   edm::Handle<reco::PFClusterCollection>& hcalClusters,
+				   reco::ElectronSeedCollection& seeds,
+				   reco::PreIdCollection& ecalPreIds, 
+				   reco::PreIdCollection& hcalPreIds,
+				   edm::Event&,
+				   const edm::EventSetup& );
 
+  // Overloaded methods to retrieve reco::TrackRef
+
+  reco::TrackRef getBaseRef( edm::Handle< std::vector<reco::Track> > handle, int idx ) const;
+  reco::TrackRef getBaseRef( edm::Handle< std::vector<reco::PFRecTrack> > handle, int idx ) const;
+
+  // Overloaded methods to populate PreIds (using PF or KF tracks)
+
+  void propagateTrackToCalo( const reco::PFRecTrackRef& pfTrackRef,
+			     const edm::Handle<reco::PFClusterCollection>& ecalClusters,
+			     const edm::Handle<reco::PFClusterCollection>& hcalClusters,
+			     std::vector<int>& matchedEcalClusters,
+			     std::vector<int>& matchedHcalClusters,
+			     reco::PreId& ecalPreId, 
+			     reco::PreId& hcalPreId );
+  
+  void propagateTrackToCalo( const reco::PFRecTrackRef& pfTrackRef,
+			     const edm::Handle<reco::PFClusterCollection>& clusters, 
+			     std::vector<int>& matchedClusters,
+			     reco::PreId& preId,
+			     bool ecal );
+
+  void propagateTrackToCalo( const reco::TrackRef& pfTrack,
+			     const edm::Handle<reco::PFClusterCollection>& ecalClusters,
+			     const edm::Handle<reco::PFClusterCollection>& hcalClusters,
+			     std::vector<int>& matchedEcalClusters,
+			     std::vector<int>& matchedHcalClusters,
+			     reco::PreId& ecalPreId, 
+			     reco::PreId& hcalPreId );
+
+  // Overloaded methods to evaluate BDTs (using PF or KF tracks)
+
+  bool decision( const reco::PFRecTrackRef& pfTrackRef,
+		 reco::PreId& ecal, 
+		 reco::PreId& hcal,
+		 double rho,
+		 const reco::BeamSpot& spot,
+		 noZS::EcalClusterLazyTools& ecalTools );
+  
+  bool decision( const reco::TrackRef& kfTrackRef,
+		 reco::PreId& ecal, 
+		 reco::PreId& hcal,
+		 double rho,
+		 const reco::BeamSpot& spot,
+		 noZS::EcalClusterLazyTools& ecalTools );
+
+  // Perform lightweight GSF tracking
   bool lightGsfTracking( reco::PreId&,
 			 const reco::TrackRef&,
 			 const reco::ElectronSeed&,
 			 const edm::EventSetup& );
+
+ private: // member data
   
   edm::ESHandle<MagneticField> field_;
-  edm::EDGetTokenT<reco::TrackCollection> tracks_;
-  edm::EDGetTokenT<reco::PFClusterCollection> ecalClusters_;
-  edm::EDGetTokenT<reco::PFClusterCollection> hcalClusters_;
-  edm::EDGetTokenT<reco::PFRecTrackCollection> pfTracks_;
+  const edm::EDGetTokenT<reco::TrackCollection> kfTracks_;
+  const edm::EDGetTokenT<reco::PFRecTrackCollection> pfTracks_;
+  const edm::EDGetTokenT<reco::PFClusterCollection> ecalClusters_;
+  const edm::EDGetTokenT<reco::PFClusterCollection> hcalClusters_;
+  const edm::EDGetTokenT<EcalRecHitCollection> ebRecHits_;
+  const edm::EDGetTokenT<EcalRecHitCollection> eeRecHits_;
+  const edm::EDGetTokenT<double> rho_;
+  const edm::EDGetTokenT<reco::BeamSpot> beamSpot_;
   std::string fitter_;
   std::string smoother_;
   std::string builder_;
@@ -97,16 +129,26 @@ class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::
     int success = 0;
     int track = 0;
     int gsf = 0;
+    float min = +1.e6;
+    float max = -1.e6;
     void init() {
       success = 0;
       track = 0;
       gsf = 0;
+      min = +1.e6;
+      max = -1.e6;
+    }
+    void preid(reco::PreId id) {
+      if ( id.mva() < min ) { min = id.mva(0); }
+      if ( id.mva() > max ) { max = id.mva(0); }
     }
     void print() {
       std::cout << "Debug:" << std::endl
 		<< " success: " << success << std::endl
   		<< " track: " << track << std::endl
-		<< " gsf: " << gsf << std::endl;
+		<< " gsf: " << gsf << std::endl
+		<< " min: " << min << std::endl 
+		<< " max: " << max << std::endl;
     }
   } debug_;
 
