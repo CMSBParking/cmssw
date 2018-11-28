@@ -73,9 +73,6 @@ void LowPtGsfElectronSeedProducer::produce( edm::Event& event,
 					    const edm::EventSetup& setup ) 
 {
   
-  // Debug info
-  debug_.init();
-
   // Products
   auto seeds = std::make_unique<reco::ElectronSeedCollection>();
   auto ecalPreIds = std::make_unique<reco::PreIdCollection>();
@@ -120,8 +117,6 @@ void LowPtGsfElectronSeedProducer::produce( edm::Event& event,
   event.put(std::move(seeds));
   event.put(std::move(ecalPreIds));
   event.put(std::move(hcalPreIds),"HCAL");
-  
-  debug_.print();
   
 }
 
@@ -175,8 +170,6 @@ void LowPtGsfElectronSeedProducer::loop( const edm::Handle< std::vector<T> >& ha
 
     if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
 
-    debug_.track++;
-    
     // Create ElectronSeed 
     reco::ElectronSeed seed( *(trackRef->seedRef()) );
     seed.setCtfTrack(trackRef);
@@ -205,8 +198,6 @@ void LowPtGsfElectronSeedProducer::loop( const edm::Handle< std::vector<T> >& ha
     // Decision based on BDT 
     bool result = decision(templatedRef,ecalPreId,hcalPreId,*rho,*spot,ecalTools);
 
-    debug_.preid(ecalPreId);
-    
     // Store PreId
     ecalPreIds.push_back(ecalPreId);
     hcalPreIds.push_back(hcalPreId);
@@ -281,7 +272,6 @@ void LowPtGsfElectronSeedProducer::propagateTrackToCalo( const reco::PFRecTrackR
   else        { point = pfTrackRef->extrapolatedPoint(reco::PFTrajectoryPoint::LayerType::HCALEntrance); }
 
   if ( point.isValid() ) {
-    if ( ecal ) debug_.success++;
 
     Info info;
     for ( unsigned int iclu = 0; iclu < clusters.product()->size(); iclu++ ) {
@@ -358,7 +348,6 @@ void LowPtGsfElectronSeedProducer::propagateTrackToCalo( const reco::TrackRef& k
   particle.setCharge(kfTrackRef->charge());
   particle.propagateToEcalEntrance(false);
   if ( particle.getSuccess() == 0 ) { return; }
-  debug_.success++;
   
   // ECAL entry point for track
   GlobalPoint ecal_pos(particle.vertex().x(),
@@ -464,8 +453,6 @@ bool LowPtGsfElectronSeedProducer::lightGsfTracking( reco::PreId& preId,
   Trajectory traj2 = smootherPtr->trajectory(traj1);
   if ( !traj2.isValid() ) {  return false; }
 
-  debug_.gsf++;
-      
   // Set PreId content
   float chi2Ratio = traj2.chiSquared() / trackRef->chi2();
   float gsfReducedChi2 = chi2Ratio * trackRef->normalizedChi2();
