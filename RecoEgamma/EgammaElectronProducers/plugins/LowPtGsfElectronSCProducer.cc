@@ -84,16 +84,14 @@ void LowPtGsfElectronSCProducer::produce( edm::Event& event, const edm::EventSet
     cluster_dr2min[itrk].resize(points[itrk].size(),dr2_);
   }
 
-  // Loop over clusters
-  for ( size_t iclu = 0; iclu < ecalClusters->size(); ++iclu ) {
+  // Cache matching of clusters to trajectory points ("global" arbitration at event level)
+  for ( size_t iclu = 0; iclu < ecalClusters->size(); ++iclu ) { // Cluster loop
     std::pair<int,int> point = std::make_pair(-1,-1);
     float dr2min = dr2_;
-    // Loop over nested vector of points
-    for ( size_t ipoint = 0; ipoint < points.size(); ++ipoint ) {
-      for ( size_t jpoint = 0; jpoint < points[ipoint].size(); ++jpoint ) {
+    for ( size_t ipoint = 0; ipoint < points.size(); ++ipoint ) { // GSF track loop
+      for ( size_t jpoint = 0; jpoint < points[ipoint].size(); ++jpoint ) { // Traj point loop
 	if ( points[ipoint][jpoint]->isValid() ) {
-	  float dr2 = reco::deltaR2( ecalClusters->at(iclu), 
-				     points[ipoint][jpoint]->positionREP() );
+	  float dr2 = reco::deltaR2( ecalClusters->at(iclu), points[ipoint][jpoint]->positionREP() );
 	  if ( dr2 < dr2min ) {
 	    // Store nearest point to this cluster
 	    dr2min = dr2;
