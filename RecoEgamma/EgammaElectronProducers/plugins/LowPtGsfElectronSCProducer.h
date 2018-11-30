@@ -28,8 +28,8 @@ class LowPtGsfElectronSCProducer : public edm::stream::EDProducer<> {
 				     const edm::Handle<reco::PFClusterCollection>& clusters,
 				     std::vector<int>& matched );
   
-  edm::EDGetTokenT<reco::GsfPFRecTrackCollection> gsfPfRecTracks_;
-  edm::EDGetTokenT<reco::PFClusterCollection> ecalClusters_;
+  const edm::EDGetTokenT<reco::GsfPFRecTrackCollection> gsfPfRecTracks_;
+  const edm::EDGetTokenT<reco::PFClusterCollection> ecalClusters_;
 
 };
 
