@@ -108,7 +108,8 @@ RecoEgammaRECO = cms.PSet(
         'keep recoRecoEcalCandidates_hfRecoEcalCandidate_*_*',
         'keep *_hfEMClusters_*_*',
         'keep *_gedGsfElectronCores_*_*',
-        'keep *_gedGsfElectrons_*_*'
+        'keep *_gedGsfElectrons_*_*',
+        'keep *_lowPtGsfEle*_*_*',
   )                                                                 
 )
 
@@ -121,11 +122,6 @@ RecoEgammaAOD = cms.PSet(
         'keep recoGsfElectrons_gedGsfElectrons_*_*', 
         'keep recoGsfElectronCores_uncleanedOnlyGsfElectronCores_*_*', 
         'keep recoGsfElectrons_uncleanedOnlyGsfElectrons_*_*', 
-        'keep recoSuperClusters_lowPtGsfElectronSuperClusters_*_*',
-        'keep recoCaloClusters_lowPtGsfElectronSuperClusters_*_*',
-        'keep recoSuperClusterRefedmValueMap_lowPtGsfElectronSuperClusters_*_*',
-        'keep recoGsfElectronCores_lowPtGsfElectronCores_*_*',
-        'keep recoGsfElectrons_lowPtGsfElectrons_*_*',
         'keep floatedmValueMap_eidRobustLoose_*_*',
         'keep floatedmValueMap_eidRobustTight_*_*',
         'keep floatedmValueMap_eidRobustHighEnergy_*_*',
@@ -164,7 +160,8 @@ RecoEgammaAOD = cms.PSet(
         'keep recoRecoEcalCandidates_hfRecoEcalCandidate_*_*',
         'keep *_hfEMClusters_*_*',
         'keep *_gedGsfElectronCores_*_*',
-        'keep *_gedGsfElectrons_*_*'
+        'keep *_gedGsfElectrons_*_*',
+        'keep *_lowPtGsfEle*_*_*',
   )                                                                 
 )
 
