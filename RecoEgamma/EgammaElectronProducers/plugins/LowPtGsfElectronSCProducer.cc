@@ -16,7 +16,8 @@
 
 LowPtGsfElectronSCProducer::LowPtGsfElectronSCProducer( const edm::ParameterSet& cfg ) :
   gsfPfRecTracks_{consumes<reco::GsfPFRecTrackCollection>( cfg.getParameter<edm::InputTag>("gsfPfRecTracks") )},
-  ecalClusters_{consumes<reco::PFClusterCollection>( cfg.getParameter<edm::InputTag>("ecalClusters") )}
+  ecalClusters_{consumes<reco::PFClusterCollection>( cfg.getParameter<edm::InputTag>("ecalClusters") )},
+  dr2_{cfg.getParameter<double>("MaxDeltaR2")}
 {
   produces<reco::CaloClusterCollection>();
   produces<reco::SuperClusterCollection>();
@@ -50,7 +51,6 @@ void LowPtGsfElectronSCProducer::produce( edm::Event& event, const edm::EventSet
   // Output CaloClusters collection
   auto caloClusters = std::make_unique<reco::CaloClusterCollection>( reco::CaloClusterCollection() );
   caloClusters->reserve(ecalClusters->size());
-  //const reco::SuperClusterRefProd caloClustersRefProd = event.getRefBeforePut<reco::SuperClusterCollection>();
 
   // Index for "best" CaloCluster per GSF track per trajectory point
   std::vector< std::vector<int> > cluster_idx;
@@ -75,13 +75,13 @@ void LowPtGsfElectronSCProducer::produce( edm::Event& event, const edm::EventSet
     }
     cluster_idx[itrk].resize(points[itrk].size(),-1);
     pfcluster_idx[itrk].resize(points[itrk].size(),-1);
-    cluster_dr2min[itrk].resize(points[itrk].size(),1.);
+    cluster_dr2min[itrk].resize(points[itrk].size(),dr2_);
   }
 
   // Loop over clusters
   for ( size_t iclu = 0; iclu < ecalClusters->size(); ++iclu ) {
     std::pair<int,int> point = std::make_pair(-1,-1);
-    float dr2min = 1.;
+    float dr2min = dr2_;
     // Loop over nested vector of points
     for ( size_t ipoint = 0; ipoint < points.size(); ++ipoint ) {
       for ( size_t jpoint = 0; jpoint < points[ipoint].size(); ++jpoint ) {
@@ -144,21 +144,18 @@ void LowPtGsfElectronSCProducer::produce( edm::Event& event, const edm::EventSet
       reco::SuperCluster sc(energy,math::XYZPoint(X,Y,Z));
       sc.setCorrectedEnergy(energy);
       sc.setSeed(seed);
-      std::cout << "ok " << itrk << " " << clusters.size() << " " << energy;// << std::endl;
       sc.setClusters(clusters);
       for ( const auto clu : clusters ) { sc.addCluster(clu); }
       PFClusterWidthAlgo pfwidth(barePtrs);
       sc.setEtaWidth(pfwidth.pflowEtaWidth());
       sc.setPhiWidth(pfwidth.pflowPhiWidth());
       sc.rawEnergy(); // Cache the value of raw energy
-      std::cout << " ok " << sc.clusters().size() << " " << sc.correctedEnergy() << std::endl;
       superClusters->push_back(sc);
 
       // Populate ValueMap container
-      superClustersValueMap.push_back( reco::SuperClusterRef(superClustersRefProd,itrk) );
+      superClustersValueMap.push_back( reco::SuperClusterRef( superClustersRefProd, superClusters->size()-1 ) );
     } else {
-      std::cout << "missing " << itrk << std::endl;
-      superClustersValueMap.push_back( reco::SuperClusterRef(superClustersRefProd.id()) );
+      superClustersValueMap.push_back( reco::SuperClusterRef( superClustersRefProd.id() ) );
     }
 
   } // GSF tracks
@@ -294,7 +291,7 @@ reco::PFClusterRef LowPtGsfElectronSCProducer::closestCluster( const reco::PFTra
 							       std::vector<int>& matched ) {
   reco::PFClusterRef closest;
   if ( point.isValid() ) {
-    float dr2min = 1.e6;
+    float dr2min = dr2_;
     for ( size_t ii = 0; ii < clusters->size(); ++ii ) {
       if ( std::find( matched.begin(), matched.end(), ii ) == matched.end() ) {
 	float dr2 = reco::deltaR2( clusters->at(ii), point.positionREP() );
@@ -304,7 +301,7 @@ reco::PFClusterRef LowPtGsfElectronSCProducer::closestCluster( const reco::PFTra
 	}
       }
     }
-    if ( dr2min < 1.e5 ) { matched.push_back( closest.index() ); }
+    if ( dr2min < (dr2_ - 1.e-6) ) { matched.push_back( closest.index() ); }
   }
   return closest;
 }
@@ -313,6 +310,7 @@ void LowPtGsfElectronSCProducer::fillDescription( edm::ParameterSetDescription& 
 {
   desc.add<edm::InputTag>("gsfPfRecTracks",edm::InputTag("lowPtGsfElePfGsfTracks"));
   desc.add<edm::InputTag>("ecalClusters",edm::InputTag("particleFlowClusterECAL"));
+  desc.add<double>("MaxDeltaR2",1.);
 }
 
 
