@@ -31,6 +31,7 @@
 <use   name="clhep"/>
 <use   name="root"/>
 
+<use   name="FastSimulation/Particle"/>
 <use   name="FastSimulation/BaseParticlePropagator"/>
 <use   name="FWCore/Utilities"/>
 <use   name="DataFormats/Common"/>
