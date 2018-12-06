@@ -10,7 +10,6 @@
 */
 // Original Author:  Robert Bainbridge
 
-#include "LowPtGsfElectronSeedProducer.h"
 #include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 #include "DataFormats/GeometryVector/interface/GlobalVector.h"
 #include "DataFormats/Math/interface/deltaPhi.h"
@@ -22,6 +21,7 @@
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/Utilities/interface/InputTag.h"
 #include "MagneticField/Records/interface/IdealMagneticFieldRecord.h"
+#include "RecoEgamma/EgammaElectronProducers/plugins/LowPtGsfElectronSeedProducer.h"
 #include "RecoTracker/TransientTrackingRecHit/interface/TkClonerImpl.h"
 #include "RecoTracker/TransientTrackingRecHit/interface/TkTransientTrackingRecHitBuilder.h"
 #include "TrackingTools/PatternTools/interface/Trajectory.h"
@@ -48,7 +48,8 @@ LowPtGsfElectronSeedProducer::LowPtGsfElectronSeedProducer( const edm::Parameter
   smoother_(conf.getParameter<std::string>("Smoother")),
   builder_(conf.getParameter<std::string>("TTRHBuilder")),
   passThrough_(conf.getParameter<bool>("PassThrough")),
-  usePfTracks_(conf.getParameter<bool>("UsePfTracks"))
+  usePfTracks_(conf.getParameter<bool>("UsePfTracks")),
+  ptThreshold_(conf.getParameter<double>("PtThreshold"))
 {
   produces<reco::ElectronSeedCollection>();
   produces<reco::PreIdCollection>();
@@ -483,7 +484,7 @@ bool LowPtGsfElectronSeedProducer::decision( const reco::PFRecTrackRef& pfTrackR
 				  spot,
 				  ecalTools);
   }
-  return passThrough_ || result;
+  return passThrough_ || ( pfTrackRef->trackRef()->pt() > ptThreshold_ ) || result;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -519,4 +520,5 @@ void LowPtGsfElectronSeedProducer::fillDescription( edm::ParameterSetDescription
   desc.add< std::vector<double> >("ModelThrsholds",std::vector<double>());
   desc.add<bool>("PassThrough",false);
   desc.add<bool>("UsePfTracks",false);
+  desc.add<double>("PtThreshold",15.);
 }
