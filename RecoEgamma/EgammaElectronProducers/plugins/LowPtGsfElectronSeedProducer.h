@@ -118,11 +118,12 @@ class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::
   const edm::EDGetTokenT<EcalRecHitCollection> eeRecHits_;
   const edm::EDGetTokenT<double> rho_;
   const edm::EDGetTokenT<reco::BeamSpot> beamSpot_;
-  std::string fitter_;
-  std::string smoother_;
-  std::string builder_;
-  bool passThrough_;
-  bool usePfTracks_;
+  const std::string fitter_;
+  const std::string smoother_;
+  const std::string builder_;
+  const bool passThrough_;
+  const bool usePfTracks_;
+  const double ptThreshold_;
 
 };
 
