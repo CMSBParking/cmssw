@@ -27,4 +27,5 @@ lowPtGsfElectronSeeds = cms.EDProducer(
             ]),
     PassThrough = cms.bool(False),
     UsePfTracks = cms.bool(True),
+    PtThreshold = cms.double(15.),
     )
