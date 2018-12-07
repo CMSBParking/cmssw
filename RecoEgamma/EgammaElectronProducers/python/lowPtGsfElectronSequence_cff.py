@@ -38,13 +38,6 @@ lowPtGsfEleGsfTracks = electronGsfTracks.clone()
 lowPtGsfEleGsfTracks.Fitter = 'lowPtGsfEleFittingSmoother'
 lowPtGsfEleGsfTracks.src = 'lowPtGsfEleCkfTrackCandidates'
 
-# PFTracks (input: lowPtGsfEleGsfTracks module)
-#from RecoParticleFlow.PFTracking.pfTrack_cfi import *
-#lowPtGsfElePfTracks = pfTrack.clone()
-#lowPtGsfElePfTracks.TkColList = ['generalTracks']
-#lowPtGsfElePfTracks.GsfTracksInEvents = True
-#lowPtGsfElePfTracks.GsfTrackModuleLabel = 'lowPtGsfEleGsfTracks'
-
 # PFGSFTracks
 from RecoParticleFlow.PFTracking.pfTrackElec_cfi import *
 lowPtGsfElePfGsfTracks = pfTrackElec.clone()
@@ -74,14 +67,13 @@ lowPtGsfElectrons.seedsTag = 'lowPtGsfElectronSeeds'
 lowPtGsfElectrons.gsfPfRecTracksTag = ''
 lowPtGsfElectrons.useGsfPfRecTracks = False
 
-# Full Open sequence 
-lowPtGsfElectronSequence = cms.Sequence(lowPtGsfElePfTracks+
-                                        lowPtGsfElectronSeeds+
-                                        lowPtGsfEleCkfTrackCandidates+
-                                        lowPtGsfEleGsfTracks+
-                                        #lowPtGsfElePfTracks+
-                                        lowPtGsfElePfGsfTracks+
-                                        lowPtGsfElectronSuperClusters+
-                                        lowPtGsfElectronCores+
-                                        lowPtGsfElectrons
+# Low pT electron reconstruction sequence
+lowPtGsfElectronSequence = cms.Sequence(lowPtGsfElePfTracks
+                                        +lowPtGsfElectronSeeds
+                                        +lowPtGsfEleCkfTrackCandidates
+                                        +lowPtGsfEleGsfTracks
+                                        +lowPtGsfElePfGsfTracks
+                                        +lowPtGsfElectronSuperClusters
+                                        +lowPtGsfElectronCores
+                                        +lowPtGsfElectrons
                                         )
