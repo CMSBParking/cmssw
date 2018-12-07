@@ -18,8 +18,8 @@ lowPtGsfElectronSeeds = cms.EDProducer(
             'ptbiased',
             ]),
     ModelWeights = cms.vstring([
-            'RecoEgamma/EgammaElectronProducers/data/2018Nov01_improvedfullseeding_formatted.xml.gz',
-            'RecoEgamma/EgammaElectronProducers/data/2018Nov01_displaced_improvedfullseeding_formatted.xml.gz',
+            'RecoEgamma/ElectronIdentification/data/LowPtElectrons/2018Nov01_improvedfullseeding_formatted.xml.gz',
+            'RecoEgamma/ElectronIdentification/data/LowPtElectrons/2018Nov01_displaced_improvedfullseeding_formatted.xml.gz',
             ]),
     ModelThresholds = cms.vdouble([
             {"L": 1.03,"M":1.75,"T":2.61}["L"], # unbiased
