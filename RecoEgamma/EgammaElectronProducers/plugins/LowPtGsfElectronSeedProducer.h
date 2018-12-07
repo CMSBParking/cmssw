@@ -123,7 +123,8 @@ class LowPtGsfElectronSeedProducer final : public edm::stream::EDProducer< edm::
   const std::string builder_;
   const bool passThrough_;
   const bool usePfTracks_;
-  const double ptThreshold_;
+  const double minPtThreshold_;
+  const double maxPtThreshold_;
 
 };
 
