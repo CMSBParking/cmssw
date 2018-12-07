@@ -3,7 +3,7 @@
 // Package:    ElectronProducers
 // Class:      LowPtGsfElectronSeedProducer
 //
-/**\class LowPtGsfElectronSeedProducer RecoEgamma/ElectronProducers/src/LowPtGsfElectronSeedProducer.cc
+/**\class LowPtGsfElectronSeedProducer RecoEgamma/EgammaElectronProducers/plugins/LowPtGsfElectronSeedProducer.cc
  Description: EDProducer of ElectronSeed objects
  Implementation:
      <Notes on implementation>
@@ -50,7 +50,8 @@ LowPtGsfElectronSeedProducer::LowPtGsfElectronSeedProducer( const edm::Parameter
   builder_(conf.getParameter<std::string>("TTRHBuilder")),
   passThrough_(conf.getParameter<bool>("PassThrough")),
   usePfTracks_(conf.getParameter<bool>("UsePfTracks")),
-  ptThreshold_(conf.getParameter<double>("PtThreshold"))
+  minPtThreshold_(conf.getParameter<double>("MinPtThreshold")),
+  maxPtThreshold_(conf.getParameter<double>("MaxPtThreshold"))
 {
   produces<reco::ElectronSeedCollection>();
   produces<reco::PreIdCollection>();
@@ -166,11 +167,11 @@ void LowPtGsfElectronSeedProducer::loop( const edm::Handle< std::vector<T> >& ha
   // Iterate through (PF or KF) tracks
   for ( unsigned int itrk = 0; itrk < handle.product()->size(); itrk++ ) {
 
-
     edm::Ref< std::vector<T> > templatedRef(handle,itrk); // TrackRef or PFRecTrackRef
     reco::TrackRef trackRef = getBaseRef(handle,itrk);
 
     if ( !(trackRef->quality(reco::TrackBase::qualityByName("highPurity"))) ) { continue; }
+    if ( !passThrough_ && ( trackRef->pt() < minPtThreshold_ ) ) { continue; }
 
     // Create ElectronSeed 
     reco::ElectronSeed seed( *(trackRef->seedRef()) );
@@ -200,16 +201,18 @@ void LowPtGsfElectronSeedProducer::loop( const edm::Handle< std::vector<T> >& ha
     // Decision based on BDT 
     bool result = decision(templatedRef,ecalPreId,hcalPreId,*rho,*spot,ecalTools);
 
-    // Store PreId
-    ecalPreIds.push_back(ecalPreId);
-    hcalPreIds.push_back(hcalPreId);
-    
     // If fails BDT, do not store seed
     if ( !result ) { continue; }
     
+    // Store PreId
+    ecalPreIds.push_back(ecalPreId);
+    hcalPreIds.push_back(hcalPreId);
+
+    // Store ElectronSeed
     seeds.push_back(seed);
 
   }
+
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -485,7 +488,7 @@ bool LowPtGsfElectronSeedProducer::decision( const reco::PFRecTrackRef& pfTrackR
 				  spot,
 				  ecalTools);
   }
-  return passThrough_ || ( pfTrackRef->trackRef()->pt() > ptThreshold_ ) || result;
+  return passThrough_ || ( pfTrackRef->trackRef()->pt() > maxPtThreshold_ ) || result;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -521,5 +524,6 @@ void LowPtGsfElectronSeedProducer::fillDescription( edm::ParameterSetDescription
   desc.add< std::vector<double> >("ModelThrsholds",std::vector<double>());
   desc.add<bool>("PassThrough",false);
   desc.add<bool>("UsePfTracks",false);
-  desc.add<double>("PtThreshold",15.);
+  desc.add<double>("MinPtThreshold",0.5);
+  desc.add<double>("MaxPtThreshold",15.);
 }
