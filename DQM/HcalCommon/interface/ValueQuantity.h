@@ -4,7 +4,6 @@
 #include "DQM/HcalCommon/interface/Quantity.h"
 #include "DQM/HcalCommon/interface/Flag.h"
 #include "boost/unordered_map.hpp"
-#include "boost/foreach.hpp"
 
 namespace hcaldqm
 {
@@ -67,6 +66,8 @@ namespace hcaldqm
 			ffC_1000000 = 52,
 			fTime_ns_250_coarse = 53,
 			fCapidMinusBXmod4 = 54,
+			fBX_36 = 55,
+			fADC_256_4 = 56, // ADC from 0-255, with 4 ADC granularity
 		};
 		const std::map<ValueQuantityType, std::string> name_value = {
 			{fN,"N"},
@@ -124,6 +125,8 @@ namespace hcaldqm
 			{ffC_1000000, "fC"},
 			{fTime_ns_250_coarse, "Time (ns)"},
 			{fCapidMinusBXmod4, "(CapId - BX) % 4"},
+			{fBX_36, "BX"},
+			{fADC_256_4, "ADC"},
 		};
 		const std::map<ValueQuantityType, double> min_value = {
 			{fN,-0.05},
@@ -180,7 +183,9 @@ namespace hcaldqm
 			{fTimingDiff_ns, -125.},
 			{ffC_1000000,0.},
 			{fTime_ns_250_coarse, -0.5},
-			{fCapidMinusBXmod4, -0.5},			
+			{fCapidMinusBXmod4, -0.5},	
+			{fBX_36, -0.5},
+			{fADC_256_4, -0.5},
 		};
 		const std::map<ValueQuantityType, double> max_value = {
 			{fN,1000},
@@ -238,6 +243,8 @@ namespace hcaldqm
 			{ffC_1000000,1.e6},
 			{fTime_ns_250_coarse, 249.5},
 			{fCapidMinusBXmod4, 3.5},
+			{fBX_36, 3564.-0.5},
+			{fADC_256_4, 255},
 		};
 		const std::map<ValueQuantityType, int> nbins_value = {
 			{fN,200},
@@ -293,7 +300,9 @@ namespace hcaldqm
 			{fTimingDiff_ns, 40},
 			{ffC_1000000,1000},
 			{fTime_ns_250_coarse, 100},
-			{fCapidMinusBXmod4, 4}
+			{fCapidMinusBXmod4, 4},
+			{fBX_36, 99},
+			{fADC_256_4, 64},
 		};
 		class ValueQuantity : public Quantity
 		{
@@ -550,7 +559,7 @@ namespace hcaldqm
 				{
 					std::vector<std::string> labels(_types.size());
 					std::cout << "SIZE = " << _types.size() << std::endl;
-					BOOST_FOREACH(TypeMap::value_type &v, _types)
+					for(auto const& v : _types)
 					{
 						labels[v.second] = utilities::ogtype2string((constants::OrbitGapType)v.first);
 					}
@@ -559,7 +568,7 @@ namespace hcaldqm
 				EventType* makeCopy() override
 				{
 					std::vector<uint32_t> vtypes;
-					BOOST_FOREACH(TypeMap::value_type &p, _types)
+					for(auto const& p : _types)
 					{
 						vtypes.push_back(p.first);
 					}

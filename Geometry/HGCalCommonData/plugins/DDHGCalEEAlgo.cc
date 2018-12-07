@@ -10,6 +10,8 @@
 #include "DetectorDescription/Core/interface/DDCurrentNamespace.h"
 #include "DetectorDescription/Core/interface/DDSplit.h"
 #include "Geometry/HGCalCommonData/plugins/DDHGCalEEAlgo.h"
+#include "Geometry/HGCalCommonData/interface/HGCalGeomTools.h"
+#include "Geometry/HGCalCommonData/interface/HGCalParameters.h"
 #include "CLHEP/Units/GlobalPhysicalConstants.h"
 #include "CLHEP/Units/GlobalSystemOfUnits.h"
 
@@ -110,15 +112,18 @@ void DDHGCalEEAlgo::initialize(const DDNumericArguments & nArgs,
 				  << " 200-300 " << rad200to300_[k];
 #endif
   slopeB_       = vArgs["SlopeBottom"];
+  zFrontB_      = vArgs["ZFrontBottom"];
+  rMinFront_    = vArgs["RMinFront"];
   slopeT_       = vArgs["SlopeTop"];
-  zFront_       = vArgs["ZFront"];
+  zFrontT_      = vArgs["ZFrontTop"];
   rMaxFront_    = vArgs["RMaxFront"];
 #ifdef EDM_ML_DEBUG
-  edm::LogVerbatim("HGCalGeom") << "Bottom slopes " << slopeB_[0] << ":" 
-				<< slopeB_[1] << " and " << slopeT_.size() 
-				<< " slopes for top" ;
+  for (unsigned int i=0; i<slopeB_.size(); ++i)
+    edm::LogVerbatim("HGCalGeom") << "Block [" << i << "] Zmin " << zFrontB_[i]
+				  << " Rmin " << rMinFront_[i] << " Slope " 
+				  << slopeB_[i];
   for (unsigned int i=0; i<slopeT_.size(); ++i)
-    edm::LogVerbatim("HGCalGeom") << "Block [" << i << "] Zmin " << zFront_[i]
+    edm::LogVerbatim("HGCalGeom") << "Block [" << i << "] Zmin " << zFrontT_[i]
 				  << " Rmax " << rMaxFront_[i] << " Slope " 
 				  << slopeT_[i];
 #endif
@@ -168,7 +173,7 @@ void DDHGCalEEAlgo::constructLayers(const DDLogicalPart& module,
   const double tol(0.01);
   for (unsigned int i=0; i<layers_.size(); i++) {
     double  zo     = zi + layerThick_[i];
-    double  routF  = rMax(zi);
+    double  routF  = HGCalGeomTools::radius(zi,zFrontT_,rMaxFront_,slopeT_);
     int     laymax = laymin+layers_[i];
     double  zz     = zi;
     double  thickTot(0);
@@ -177,8 +182,7 @@ void DDHGCalEEAlgo::constructLayers(const DDLogicalPart& module,
       int     ii     = layerType_[ly];
       int     copy   = copyNumber_[ii];
       double  hthick = 0.5*thick_[ii];
-      double  rinB   = (layerSense_[ly] == 0) ? (zo*slopeB_[0]) :
-	(zo*slopeB_[1]);
+      double  rinB   = HGCalGeomTools::radius(zo,zFrontB_,rMinFront_,slopeB_);
       zz            += hthick;
       thickTot      += thick_[ii];
 
@@ -262,25 +266,6 @@ void DDHGCalEEAlgo::constructLayers(const DDLogicalPart& module,
   }   // End of loop over blocks
 }
 
-double DDHGCalEEAlgo::rMax(double z) {
-  double r(0);
-#ifdef EDM_ML_DEBUG
-  unsigned int ik(0);
-#endif
-  for (unsigned int k=0; k<slopeT_.size(); ++k) {
-    if (z < zFront_[k]) break;
-    r  = rMaxFront_[k] + (z - zFront_[k]) * slopeT_[k];
-#ifdef EDM_ML_DEBUG
-    ik = k;
-#endif
-  }
-#ifdef EDM_ML_DEBUG
-  edm::LogVerbatim("HGCalGeom") << "DDHGCalEEAlgo:rMax : " << z << ":" << ik 
-				<< ":" << r;
-#endif
-  return r;
-}
-
 void DDHGCalEEAlgo::positionSensitive(const DDLogicalPart& glog, double rin,
 				      double rout, double zpos, int layertype,
 				      DDCompactView& cpv) {
@@ -289,13 +274,13 @@ void DDHGCalEEAlgo::positionSensitive(const DDLogicalPart& glog, double rin,
   double R    = 2.0*r/sqrt3;
   double dy   = 0.75*R;
   int    N    = (int)(0.5*rout/r) + 2;
-  double xc[6], yc[6];
 #ifdef EDM_ML_DEBUG
   int    ium(0), ivm(0), iumAll(0), ivmAll(0), kount(0), ntot(0), nin(0);
   std::vector<int>  ntype(6,0);
   edm::LogVerbatim("HGCalGeom") << "DDHGCalEEAlgo: " << glog.ddname() 
-				<< " rout " << rout << " N " 
-				<< N << " for maximum u, v";
+				<< " rout " << rout << " N " << N 
+				<< " for maximum u, v;  r " << r << " R "
+				<< R << " dy " << dy;
 #endif
   for (int u = -N; u <= N; ++u) {
     int iu = std::abs(u);
@@ -305,22 +290,20 @@ void DDHGCalEEAlgo::positionSensitive(const DDLogicalPart& glog, double rin,
       int nc =-2*u+v;
       double xpos = nc*r;
       double ypos = nr*dy;
-      xc[0] = xpos+r;  yc[0] = ypos+0.5*R;
-      xc[1] = xpos;    yc[1] = ypos+R;
-      xc[2] = xpos-r;  yc[2] = ypos+0.5*R;
-      xc[3] = xpos-r;  yc[3] = ypos-0.5*R;
-      xc[4] = xpos;    yc[4] = ypos-R;
-      xc[5] = xpos+r;  yc[5] = ypos-0.5*R;
-      bool cornerOne(false), cornerAll(true);
-      for (int k=0; k<6; ++k) {
-	double rpos = std::sqrt(xc[k]*xc[k]+yc[k]*yc[k]);
-	if (rpos >= rin && rpos <= rout) cornerOne = true;
-	else                             cornerAll = false;
-      }
+      std::pair<int,int> corner = 
+	HGCalGeomTools::waferCorner(xpos, ypos, r, R, rin, rout, false);
 #ifdef EDM_ML_DEBUG
       ++ntot;
+      if (((corner.first <= 0) && std::abs(u) < 5 && std::abs(v) < 5) ||
+	  (std::abs(u) < 2 && std::abs(v) < 2)) {
+	edm::LogVerbatim("HGCalGeom") << "DDHGCalEEAlgo: " << glog.ddname() 
+				      << " R " << rin << ":" << rout 
+				      << "\n Z " << zpos << " LayerType " 
+				      << layertype << " u " << u << " v " << v
+				      << " with " << corner.first <<" corners";
+      }
 #endif
-      if (cornerOne) {
+      if (corner.first > 0) {
 	int type = waferType_->getType(xpos,ypos,zpos);
 	int copy = type*1000000 + iv*100 + iu;
 	if (u < 0) copy += 10000;
@@ -331,7 +314,7 @@ void DDHGCalEEAlgo::positionSensitive(const DDLogicalPart& glog, double rin,
 	kount++;
 	if (copies_.count(copy) == 0) copies_.insert(copy);
 #endif
-	if (cornerAll) {
+	if (corner.first == (int)(HGCalParameters::k_CornerSize)) {
 #ifdef EDM_ML_DEBUG
 	  if (iu > iumAll) iumAll = iu;
 	  if (iv > ivmAll) ivmAll = iv;

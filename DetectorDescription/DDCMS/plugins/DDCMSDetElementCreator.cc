@@ -85,10 +85,10 @@ std::string
 cms::detElementName( dd4hep::PlacedVolume volume ) {
   if( volume.isValid()) {
     std::string name = volume.name();
-    std::string nnam = name.substr( name.find('_') + 1 );
+    std::string nnam = name.substr( name.find(NAMESPACE_SEP) + 1 );
     return nnam;
   }
-  except("MyDDCMS","++ Cannot deduce name from invalid PlacedVolume handle!");
+  except("DD4CMS","++ Cannot deduce name from invalid PlacedVolume handle!");
   return std::string();
 }
 

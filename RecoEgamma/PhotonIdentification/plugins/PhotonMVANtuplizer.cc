@@ -31,8 +31,10 @@
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 #include "DataFormats/EgammaCandidates/interface/Photon.h"
+#include "DataFormats/PatCandidates/interface/Photon.h"
 
 #include "RecoEgamma/EgammaTools/interface/MVAVariableManager.h"
+#include "RecoEgamma/EgammaTools/interface/MultiToken.h"
 
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
@@ -46,40 +48,24 @@
 // class declaration
 //
 
-// If the analyzer does not use TFileService, please remove
-// the template argument to the base class so the class inherits
-// from  edm::one::EDAnalyzer<>
-// This will improve performance in multithreaded jobs.
-//
-
 class PhotonMVANtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources>  {
 
    public:
       explicit PhotonMVANtuplizer(const edm::ParameterSet&);
-      ~PhotonMVANtuplizer() override;
 
       static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
 
 
    private:
-      void beginJob() override;
       void analyze(const edm::Event&, const edm::EventSetup&) override;
-      void endJob() override;
 
       // ----------member data ---------------------------
 
-      // for AOD case
-      const edm::EDGetToken src_;
-      const edm::EDGetToken vertices_;
-      const edm::EDGetToken pileup_;
-
-      // for miniAOD case
-      const edm::EDGetToken srcMiniAOD_;
-      const edm::EDGetToken verticesMiniAOD_;
-      const edm::EDGetToken pileupMiniAOD_;
-
       // other
       TTree* tree_;
+
+      // To manage the variables which are parsed from the text file
+      MVAVariableManager<reco::Photon> mvaVarMngr_;
 
       std::vector<float> vars_;
       int nVars_;
@@ -88,6 +74,11 @@ class PhotonMVANtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources
       int nEvent_, nRun_, nLumi_;
       int genNpu_;
       int vtxN_;
+      double pT_, eta_;
+
+      // photon genMatch variable
+      int matchedToGenPh_;
+      int matchedGenIdx_;
 
       // to hold ID decisions and categories
       std::vector<int> mvaPasses_;
@@ -114,38 +105,71 @@ class PhotonMVANtuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources
       // config
       const bool isMC_;
       const double ptThreshold_;
+      const double deltaR_;
+
+      // for AOD or MiniAOD case
+      MultiTokenT<edm::View<reco::Photon>>        src_;
+      MultiTokenT<std::vector<reco::Vertex>>      vertices_;
+      MultiTokenT<std::vector<PileupSummaryInfo>> pileup_;
+      MultiTokenT<edm::View<reco::GenParticle>> genParticles_;
+
 };
 
-//
-// constants, enums and typedefs
-//
+enum PhotonMatchType {
+  FAKE_PHOTON,
+  TRUE_PROMPT_PHOTON,
+  TRUE_NON_PROMPT_PHOTON,
+};
 
-//
-// static data member definitions
-//
+namespace {
 
-//
-// constructors and destructor
-//
+    int matchToTruth( const reco::Photon& ph,
+                      const edm::View<reco::GenParticle>& genParticles,
+                      double deltaR)
+    {
+      // Find the closest status 1 gen photon to the reco photon
+      double dR = 999;
+      reco::GenParticle const * closestPhoton = &genParticles[0];
+      for (auto & particle : genParticles) {
+        // Drop everything that is not photon or not status 1
+        if( abs(particle.pdgId()) != 22 || particle.status() != 1 ) continue;
+
+        double dRtmp = ROOT::Math::VectorUtil::DeltaR( ph.p4(), particle.p4() );
+        if( dRtmp < dR ) {
+          dR = dRtmp;
+          closestPhoton = &particle;
+        }
+      }
+      // See if the closest photon (if it exists) is close enough.
+      // If not, no match found.
+      if(dR < deltaR) {
+          if( closestPhoton->isPromptFinalState() ) return TRUE_PROMPT_PHOTON;
+          else return TRUE_NON_PROMPT_PHOTON;
+      }
+      return FAKE_PHOTON;
+    }
+
+};
+
+// constructor
 PhotonMVANtuplizer::PhotonMVANtuplizer(const edm::ParameterSet& iConfig)
- :
-  src_                   (consumes<edm::View<reco::Photon> >(iConfig.getParameter<edm::InputTag>("src"))),
-  vertices_              (consumes<std::vector<reco::Vertex> >(iConfig.getParameter<edm::InputTag>("vertices"))),
-  pileup_                (consumes<std::vector< PileupSummaryInfo > >(iConfig.getParameter<edm::InputTag>("pileup"))),
-  srcMiniAOD_            (consumes<edm::View<reco::Photon> >(iConfig.getParameter<edm::InputTag>("srcMiniAOD"))),
-  verticesMiniAOD_       (consumes<std::vector<reco::Vertex> >(iConfig.getParameter<edm::InputTag>("verticesMiniAOD"))),
-  pileupMiniAOD_         (consumes<std::vector< PileupSummaryInfo > >(iConfig.getParameter<edm::InputTag>("pileupMiniAOD"))),
-  phoMapTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAs")),
-  phoMapBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVALabels")),
-  nPhoMaps_              (phoMapBranchNames_.size()),
-  valMapTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAValMaps")),
-  valMapBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAValMapLabels")),
-  nValMaps_              (valMapBranchNames_.size()),
-  mvaCatTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVACats")),
-  mvaCatBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVACatLabels")),
-  nCats_                 (mvaCatBranchNames_.size()),
-  isMC_                  (iConfig.getParameter<bool>("isMC")),
-  ptThreshold_           (iConfig.getParameter<double>("ptThreshold"))
+ : mvaVarMngr_            (iConfig.getParameter<std::string>("variableDefinition"))
+ , phoMapTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAs"))
+ , phoMapBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVALabels"))
+ , nPhoMaps_              (phoMapBranchNames_.size())
+ , valMapTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAValMaps"))
+ , valMapBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVAValMapLabels"))
+ , nValMaps_              (valMapBranchNames_.size())
+ , mvaCatTags_            (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVACats"))
+ , mvaCatBranchNames_     (iConfig.getUntrackedParameter<std::vector<std::string>>("phoMVACatLabels"))
+ , nCats_                 (mvaCatBranchNames_.size())
+ , isMC_                  (iConfig.getParameter<bool>("isMC"))
+ , ptThreshold_           (iConfig.getParameter<double>("ptThreshold"))
+ , deltaR_                (iConfig.getParameter<double>("deltaR"))
+ , src_                   (consumesCollector(), iConfig, "src"     , "srcMiniAOD")
+ , vertices_        (src_, consumesCollector(), iConfig, "vertices", "verticesMiniAOD")
+ , pileup_          (src_, consumesCollector(), iConfig, "pileup"  , "pileupMiniAOD")
+ , genParticles_    (src_, consumesCollector(), iConfig, "genParticles", "genParticlesMiniAOD")
 {
     // phoMaps
     for (size_t k = 0; k < nPhoMaps_; ++k) {
@@ -172,49 +196,49 @@ PhotonMVANtuplizer::PhotonMVANtuplizer(const edm::ParameterSet& iConfig)
         mvaCats_.push_back(0);
     }
 
-   // Book tree
-   usesResource(TFileService::kSharedResource);
-   edm::Service<TFileService> fs ;
-   tree_  = fs->make<TTree>("tree","tree");
+    // Book tree
+    usesResource(TFileService::kSharedResource);
+    edm::Service<TFileService> fs ;
+    tree_  = fs->make<TTree>("tree","tree");
 
-   tree_->Branch("nEvent",  &nEvent_);
-   tree_->Branch("nRun",    &nRun_);
-   tree_->Branch("nLumi",   &nLumi_);
-   if (isMC_) tree_->Branch("genNpu", &genNpu_);
-   tree_->Branch("vtxN",   &vtxN_);
+    nVars_ = mvaVarMngr_.getNVars();
 
-   // Has to be in two different loops
-   for (int i = 0; i < nVars_; ++i) {
-       vars_.push_back(0.0);
-   }
+    tree_->Branch("nEvent", &nEvent_);
+    tree_->Branch("nRun", &nRun_);
+    tree_->Branch("nLumi", &nLumi_);
+    if (isMC_) {
+        tree_->Branch("genNpu", &genNpu_);
+        tree_->Branch("matchedToGenPh", &matchedToGenPh_);
+    }
+    tree_->Branch("vtxN", &vtxN_);
+    tree_->Branch("pT", &pT_);
+    tree_->Branch("eta", &eta_);
 
-   // IDs
-   for (size_t k = 0; k < nValMaps_; ++k) {
-       tree_->Branch(valMapBranchNames_[k].c_str() ,  &mvaValues_[k]);
-   }
+    // Has to be in two different loops
+    for (int i = 0; i < nVars_; ++i) {
+        vars_.push_back(0.0);
+    }
+    for (int i = 0; i < nVars_; ++i) {
+        tree_->Branch(mvaVarMngr_.getName(i).c_str(), &vars_[i]);
+    }
 
-   for (size_t k = 0; k < nPhoMaps_; ++k) {
-       tree_->Branch(phoMapBranchNames_[k].c_str() ,  &mvaPasses_[k]);
-   }
+    // IDs
+    for (size_t k = 0; k < nValMaps_; ++k) {
+        tree_->Branch(valMapBranchNames_[k].c_str() ,  &mvaValues_[k]);
+    }
 
-   for (size_t k = 0; k < nCats_; ++k) {
-       tree_->Branch(mvaCatBranchNames_[k].c_str() ,  &mvaCats_[k]);
-   }
+    for (size_t k = 0; k < nPhoMaps_; ++k) {
+        tree_->Branch(phoMapBranchNames_[k].c_str() ,  &mvaPasses_[k]);
+    }
+
+    for (size_t k = 0; k < nCats_; ++k) {
+        tree_->Branch(mvaCatBranchNames_[k].c_str() ,  &mvaCats_[k]);
+    }
+
+    // All tokens for event content needed by this MVA
+    // Tags from the variable helper
+    mvaVarMngr_.setConsumes(consumesCollector());
 }
-
-
-PhotonMVANtuplizer::~PhotonMVANtuplizer()
-{
-
-   // do anything here that needs to be done at desctruction time
-   // (e.g. close files, deallocate resources etc.)
-
-}
-
-
-//
-// member functions
-//
 
 // ------------ method called for each event  ------------
 void
@@ -225,28 +249,13 @@ PhotonMVANtuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
     nRun_   = iEvent.id().run();
     nLumi_  = iEvent.luminosityBlock();
 
-
-    // Retrieve Vertecies
-    edm::Handle<reco::VertexCollection> vertices;
-    iEvent.getByToken(vertices_, vertices);
-    if( !vertices.isValid() ){
-      iEvent.getByToken(verticesMiniAOD_,vertices);
-      if( !vertices.isValid() )
-        throw cms::Exception(" Collection not found: ")
-          << " failed to find a standard AOD or miniAOD vertex collection " << std::endl;
-    }
+    // Get Handles
+    auto src            = src_.getValidHandle(iEvent);
+    auto vertices       = vertices_.getValidHandle(iEvent);
+    auto pileup         = pileup_.getValidHandle(iEvent);
+    auto genParticles   = genParticles_.getValidHandle(iEvent);
 
     vtxN_ = vertices->size();
-
-    // Retrieve Pileup Info
-    edm::Handle<std::vector< PileupSummaryInfo > >  pileup;
-    iEvent.getByToken(pileup_, pileup);
-    if( !pileup.isValid() ){
-      iEvent.getByToken(pileupMiniAOD_,pileup);
-      if( !pileup.isValid() )
-        throw cms::Exception(" Collection not found: ")
-          << " failed to find a standard AOD or miniAOD pileup collection " << std::endl;
-    }
 
     // Fill with true number of pileup
     if(isMC_) {
@@ -259,19 +268,6 @@ PhotonMVANtuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
                break;
            }
        }
-    }
-
-    edm::Handle<edm::View<reco::Photon> > src;
-
-    // Retrieve the collection of particles from the event.
-    // If we fail to retrieve the collection with the standard AOD
-    // name, we next look for the one with the stndard miniAOD name.
-    iEvent.getByToken(src_, src);
-    if( !src.isValid() ){
-      iEvent.getByToken(srcMiniAOD_,src);
-      if( !src.isValid() )
-        throw cms::Exception(" Collection not found: ")
-          << " failed to find a standard AOD or miniAOD particle collection " << std::endl;
     }
 
     // Get MVA decisions
@@ -301,38 +297,36 @@ PhotonMVANtuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSe
         if (pho->pt() < ptThreshold_) {
             continue;
         }
+        pT_ = pho->pt();
+        eta_ = pho->eta();
+
+        // variables from the text file
+        for (int iVar = 0; iVar < nVars_; ++iVar) {
+            vars_[iVar] = mvaVarMngr_.getValue(iVar, pho, iEvent);
+        }
+
+        if (isMC_) {
+            matchedToGenPh_ = matchToTruth( *pho, *genParticles, deltaR_);
+        }
 
         //
         // Look up and save the ID decisions
         //
         for (size_t k = 0; k < nPhoMaps_; ++k) {
-          mvaPasses_[k] = (int)(*decisions[k])[pho];
+            mvaPasses_[k] = (int)(*decisions[k])[pho];
         }
 
         for (size_t k = 0; k < nValMaps_; ++k) {
-          mvaValues_[k] = (*values[k])[pho];
+            mvaValues_[k] = (*values[k])[pho];
         }
 
         for (size_t k = 0; k < nCats_; ++k) {
           mvaCats_[k] = (*mvaCats[k])[pho];
         }
 
-
         tree_->Fill();
     }
 
-}
-
-// ------------ method called once each job just before starting event loop  ------------
-void
-PhotonMVANtuplizer::beginJob()
-{
-}
-
-// ------------ method called once each job just after ending the event loop  ------------
-void
-PhotonMVANtuplizer::endJob()
-{
 }
 
 // ------------ method fills 'descriptions' with the allowed parameters for the module  ------------
@@ -343,9 +337,11 @@ PhotonMVANtuplizer::fillDescriptions(edm::ConfigurationDescriptions& description
     desc.add<edm::InputTag>("src");
     desc.add<edm::InputTag>("vertices");
     desc.add<edm::InputTag>("pileup");
+    desc.add<edm::InputTag>("genParticles");
     desc.add<edm::InputTag>("srcMiniAOD");
     desc.add<edm::InputTag>("verticesMiniAOD");
     desc.add<edm::InputTag>("pileupMiniAOD");
+    desc.add<edm::InputTag>("genParticlesMiniAOD");
     desc.addUntracked<std::vector<std::string>>("phoMVAs");
     desc.addUntracked<std::vector<std::string>>("phoMVALabels");
     desc.addUntracked<std::vector<std::string>>("phoMVAValMaps");
@@ -354,8 +350,9 @@ PhotonMVANtuplizer::fillDescriptions(edm::ConfigurationDescriptions& description
     desc.addUntracked<std::vector<std::string>>("phoMVACatLabels");
     desc.add<bool>("isMC");
     desc.add<double>("ptThreshold", 5.0);
+    desc.add<double>("deltaR", 0.1);
+    desc.add<std::string>("variableDefinition");
     descriptions.addDefault(desc);
-
 }
 
 //define this as a plug-in

@@ -3,6 +3,7 @@ from Configuration.Eras.Modifier_run2_miniAOD_80XLegacy_cff import run2_miniAOD_
 from Configuration.Eras.Modifier_run2_nanoAOD_92X_cff import run2_nanoAOD_92X
 from Configuration.Eras.Modifier_run2_nanoAOD_94XMiniAODv1_cff import run2_nanoAOD_94XMiniAODv1
 from Configuration.Eras.Modifier_run2_nanoAOD_94XMiniAODv2_cff import run2_nanoAOD_94XMiniAODv2
+from Configuration.Eras.Modifier_run2_nanoAOD_94X2016_cff import run2_nanoAOD_94X2016
 from PhysicsTools.NanoAOD.common_cff import *
 import PhysicsTools.PatAlgos.producersLayer1.electronProducer_cfi
 from math import ceil,log
@@ -18,28 +19,7 @@ slimmedElectronsUpdated = cms.EDProducer("PATElectronUpdater",
 )
 run2_miniAOD_80XLegacy.toModify( slimmedElectronsUpdated, computeMiniIso = True )
 
-from PhysicsTools.SelectorUtils.tools.vid_id_tools import setupVIDSelection
-from RecoEgamma.ElectronIdentification.egmGsfElectronIDs_cff import *
-from RecoEgamma.ElectronIdentification.heepIdVarValueMapProducer_cfi import *
-
-electronMVAValueMapProducer.srcMiniAOD = cms.InputTag("slimmedElectrons")
-run2_miniAOD_80XLegacy.toModify(electronMVAValueMapProducer, srcMiniAOD = "slimmedElectronsUpdated")
-run2_nanoAOD_92X.toModify(electronMVAValueMapProducer, srcMiniAOD = "slimmedElectronsUpdated")
-
-electronMVAVariableHelper.srcMiniAOD = cms.InputTag("slimmedElectrons")
-run2_miniAOD_80XLegacy.toModify(electronMVAVariableHelper, srcMiniAOD = "slimmedElectronsUpdated")
-run2_nanoAOD_92X.toModify(electronMVAVariableHelper, srcMiniAOD = "slimmedElectronsUpdated")
-
-egmGsfElectronIDs.physicsObjectIDs = cms.VPSet()
-egmGsfElectronIDs.physicsObjectSrc = cms.InputTag('slimmedElectrons')
-run2_miniAOD_80XLegacy.toModify(egmGsfElectronIDs, physicsObjectSrc = "slimmedElectronsUpdated")
-run2_nanoAOD_92X.toModify(egmGsfElectronIDs, physicsObjectSrc = "slimmedElectronsUpdated")
-
-heepIDVarValueMaps.elesMiniAOD = cms.InputTag('slimmedElectrons')
-run2_miniAOD_80XLegacy.toModify(heepIDVarValueMaps, elesMiniAOD = "slimmedElectronsUpdated")
-run2_nanoAOD_92X.toModify(heepIDVarValueMaps, elesMiniAOD = "slimmedElectronsUpdated")
-
-_electron_id_modules_WorkingPoints = cms.PSet(
+electron_id_modules_WorkingPoints_nanoAOD = cms.PSet(
     modules = cms.vstring(
         'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Fall17_94X_V1_cff',
         'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Fall17_94X_V2_cff',
@@ -56,10 +36,11 @@ _electron_id_modules_WorkingPoints = cms.PSet(
         "egmGsfElectronIDs:cutBasedElectronID-Fall17-94X-V2-tight",
     )
 )
-run2_miniAOD_80XLegacy.toModify(_electron_id_modules_WorkingPoints,
+run2_miniAOD_80XLegacy.toModify(electron_id_modules_WorkingPoints_nanoAOD,
     modules = cms.vstring(
         'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Summer16_80X_V1_cff',
         'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronHLTPreselecition_Summer16_V1_cff',
+        'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Spring15_25ns_V1_cff',
         'RecoEgamma.ElectronIdentification.Identification.heepElectronID_HEEPV70_cff',
         'RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Spring16_GeneralPurpose_V1_cff',
         'RecoEgamma.ElectronIdentification.Identification.mvaElectronID_Spring16_HZZ_V1_cff',
@@ -70,23 +51,51 @@ run2_miniAOD_80XLegacy.toModify(_electron_id_modules_WorkingPoints,
         "egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-tight",
     )
 )
+run2_nanoAOD_94X2016.toModify(electron_id_modules_WorkingPoints_nanoAOD,
+    modules = cms.vstring(
+        'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Summer16_80X_V1_cff',
+        'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronHLTPreselecition_Summer16_V1_cff',
+        'RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Spring15_25ns_V1_cff',
+        'RecoEgamma.ElectronIdentification.Identification.heepElectronID_HEEPV70_cff',
+    ),
+    WorkingPoints = cms.vstring(
+        "egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-veto",
+        "egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-loose",
+        "egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-medium",
+        "egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-tight",
+    )
+)
+ 
 
-_bitmapVIDForEle_docstring = ''
-for modname in _electron_id_modules_WorkingPoints.modules:
-    ids= __import__(modname, globals(), locals(), ['idName','cutFlow'])
-    for name in dir(ids):
-        _id = getattr(ids,name)
-        if hasattr(_id,'idName') and hasattr(_id,'cutFlow'):
-            setupVIDSelection(egmGsfElectronIDs,_id)
-            if (len(_electron_id_modules_WorkingPoints.WorkingPoints)>0 and _id.idName==_electron_id_modules_WorkingPoints.WorkingPoints[0].split(':')[-1]):
-                _bitmapVIDForEle_docstring = 'VID compressed bitmap (%s), %d bits per cut'%(','.join([cut.cutName.value() for cut in _id.cutFlow]),int(ceil(log(len(_electron_id_modules_WorkingPoints.WorkingPoints)+1,2))))
+def _get_bitmapVIDForEle_docstring(modules,WorkingPoints):
+    docstring=''
+    for modname in modules:
+        ids= __import__(modname, globals(), locals(), ['idName','cutFlow'])
+        for name in dir(ids):
+            _id = getattr(ids,name)
+            if hasattr(_id,'idName') and hasattr(_id,'cutFlow'):
+                if (len(WorkingPoints)>0 and _id.idName==WorkingPoints[0].split(':')[-1]):
+                    docstring = 'VID compressed bitmap (%s), %d bits per cut'%(','.join([cut.cutName.value() for cut in _id.cutFlow]),int(ceil(log(len(WorkingPoints)+1,2))))
+    return docstring
 
 bitmapVIDForEle = cms.EDProducer("EleVIDNestedWPBitmapProducer",
     src = cms.InputTag("slimmedElectrons"),
-    WorkingPoints = _electron_id_modules_WorkingPoints.WorkingPoints,
+    WorkingPoints = electron_id_modules_WorkingPoints_nanoAOD.WorkingPoints,
 )
-run2_miniAOD_80XLegacy.toModify(bitmapVIDForEle, src = "slimmedElectronsUpdated")
-run2_nanoAOD_92X.toModify(bitmapVIDForEle, src = "slimmedElectronsUpdated")
+_bitmapVIDForEle_docstring = _get_bitmapVIDForEle_docstring(electron_id_modules_WorkingPoints_nanoAOD.modules,bitmapVIDForEle.WorkingPoints)
+
+bitmapVIDForEleSpring15 = bitmapVIDForEle.clone()
+bitmapVIDForEleSpring15.WorkingPoints = cms.vstring(
+    "egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-veto",
+    "egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-loose",
+    "egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-medium",
+#    "egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-tight", # not fitting in sizeof(int)
+)
+_bitmapVIDForEleSpring15_docstring = _get_bitmapVIDForEle_docstring(electron_id_modules_WorkingPoints_nanoAOD.modules,bitmapVIDForEleSpring15.WorkingPoints)
+
+for modifier in run2_miniAOD_80XLegacy, run2_nanoAOD_92X:
+    modifier.toModify(bitmapVIDForEle, src = "slimmedElectronsUpdated")
+run2_miniAOD_80XLegacy.toModify(bitmapVIDForEleSpring15, src = "slimmedElectronsUpdated")
 
 isoForEle = cms.EDProducer("EleIsoValueMapProducer",
     src = cms.InputTag("slimmedElectrons"),
@@ -97,6 +106,9 @@ isoForEle = cms.EDProducer("EleIsoValueMapProducer",
     EAFile_PFIso = cms.FileInPath("RecoEgamma/ElectronIdentification/data/Fall17/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_94X.txt"),
 )
 run2_miniAOD_80XLegacy.toModify(isoForEle, src = "slimmedElectronsUpdated",
+                                EAFile_MiniIso = "RecoEgamma/ElectronIdentification/data/Spring15/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_25ns.txt",
+                                EAFile_PFIso = "RecoEgamma/ElectronIdentification/data/Summer16/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_80X.txt")
+run2_nanoAOD_94X2016.toModify(isoForEle,
                                 EAFile_MiniIso = "RecoEgamma/ElectronIdentification/data/Spring15/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_25ns.txt",
                                 EAFile_PFIso = "RecoEgamma/ElectronIdentification/data/Summer16/effAreaElectrons_cone03_pfNeuHadronsAndPhotons_80X.txt")
 run2_nanoAOD_92X.toModify(isoForEle, src = "slimmedElectronsUpdated")
@@ -120,8 +132,9 @@ energyCorrForEle80X =  cms.EDProducer("ElectronEnergyVarProducer",
     srcCorr = cms.InputTag("calibratedPatElectrons80X"),
 )
 import RecoEgamma.EgammaTools.calibratedEgammas_cff
-calibratedPatElectrons94Xv1 = RecoEgamma.EgammaTools.calibratedEgammas_cff.calibratedPatElectrons.clone(
-    produceCalibratedObjs = False
+calibratedPatElectrons94X = RecoEgamma.EgammaTools.calibratedEgammas_cff.calibratedPatElectrons.clone(
+    produceCalibratedObjs = False,
+    correctionFile = cms.string("EgammaAnalysis/ElectronTools/data/ScalesSmearings/Run2017_17Nov2017_v1_ele_unc"),
 )
 
 slimmedElectronsWithUserData = cms.EDProducer("PATElectronUserDataEmbedder",
@@ -139,6 +152,7 @@ slimmedElectronsWithUserData = cms.EDProducer("PATElectronUserDataEmbedder",
         ptRatio = cms.InputTag("ptRatioRelForEle:ptRatio"),
         ptRel = cms.InputTag("ptRatioRelForEle:ptRel"),
         jetNDauChargedMVASel = cms.InputTag("ptRatioRelForEle:jetNDauChargedMVASel"),
+        dr03TkSumPtHEEP = cms.InputTag("heepIDVarValueMaps","eleTrkPtIso")
     ),
     userIntFromBools = cms.PSet(
 
@@ -184,11 +198,27 @@ run2_miniAOD_80XLegacy.toModify(slimmedElectronsWithUserData.userFloats,
     mvaFall17V2noIso = None,
     eCorr = cms.InputTag("energyCorrForEle80X","eCorr")
 )
-run2_nanoAOD_94XMiniAODv1.toModify(slimmedElectronsWithUserData.userFloats,
-    ecalTrkEnergyErrPostCorr = cms.InputTag("calibratedPatElectrons94Xv1","ecalTrkEnergyErrPostCorr"),
-    ecalTrkEnergyPreCorr     = cms.InputTag("calibratedPatElectrons94Xv1","ecalTrkEnergyPreCorr"),
-    ecalTrkEnergyPostCorr    = cms.InputTag("calibratedPatElectrons94Xv1","ecalTrkEnergyPostCorr"),
+run2_nanoAOD_94X2016.toModify(slimmedElectronsWithUserData.userFloats,
+    mvaFall17V1Iso = None,
+    mvaFall17V1noIso = None,
+    mvaFall17V2Iso = None,
+    mvaFall17V2noIso = None,
 )
+run2_nanoAOD_94XMiniAODv1.toModify(slimmedElectronsWithUserData.userFloats,
+    ecalTrkEnergyErrPostCorrNew = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyErrPostCorr"),
+    ecalTrkEnergyPreCorrNew     = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyPreCorr"),
+    ecalTrkEnergyPostCorrNew    = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyPostCorr"),
+)
+
+#the94X miniAOD V2 had a bug in the scale and smearing for electrons in the E/p comb
+#therefore we redo it but but we need use a new name for the userFloat as we cant override existing userfloats
+#for technical reasons
+run2_nanoAOD_94XMiniAODv2.toModify(slimmedElectronsWithUserData.userFloats,
+    ecalTrkEnergyErrPostCorrNew = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyErrPostCorr"),
+    ecalTrkEnergyPreCorrNew     = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyPreCorr"),
+    ecalTrkEnergyPostCorrNew    = cms.InputTag("calibratedPatElectrons94X","ecalTrkEnergyPostCorr"),
+)
+
 run2_miniAOD_80XLegacy.toReplaceWith(slimmedElectronsWithUserData.userIntFromBools,
     cms.PSet(
         mvaSpring16GP_WP90 = cms.InputTag("egmGsfElectronIDs:mvaEleID-Spring16-GeneralPurpose-V1-wp90"),
@@ -200,8 +230,30 @@ run2_miniAOD_80XLegacy.toReplaceWith(slimmedElectronsWithUserData.userIntFromBoo
         cutbasedID_tight = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-tight"),
         cutbasedID_HLT = cms.InputTag("egmGsfElectronIDs:cutBasedElectronHLTPreselection-Summer16-V1"),
         cutbasedID_HEEP = cms.InputTag("egmGsfElectronIDs:heepElectronID-HEEPV70"),
+        cutbasedID_Spring15_veto = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-veto"),
+        cutbasedID_Spring15_loose = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-loose"),
+        cutbasedID_Spring15_medium = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-medium"),
+        cutbasedID_Spring15_tight = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-tight"),
     )
 )
+run2_nanoAOD_94X2016.toReplaceWith(slimmedElectronsWithUserData.userIntFromBools,
+    cms.PSet(
+        # MVAs and HEEP are already pre-computed. Cut-based too, but we re-add it for consistency with the nested bitmap
+        cutbasedID_veto = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-veto"),
+        cutbasedID_loose = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-loose"),
+        cutbasedID_medium = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-medium"),
+        cutbasedID_tight = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Summer16-80X-V1-tight"),
+        cutbasedID_HLT = cms.InputTag("egmGsfElectronIDs:cutBasedElectronHLTPreselection-Summer16-V1"),
+        cutbasedID_Spring15_veto = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-veto"),
+        cutbasedID_Spring15_loose = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-loose"),
+        cutbasedID_Spring15_medium = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-medium"),
+        cutbasedID_Spring15_tight = cms.InputTag("egmGsfElectronIDs:cutBasedElectronID-Spring15-25ns-V1-standalone-tight"),
+    )
+)
+for modifier in run2_miniAOD_80XLegacy, run2_nanoAOD_94X2016:
+    modifier.toModify(slimmedElectronsWithUserData.userInts,
+                      VIDNestedWPBitmapSpring15 = cms.InputTag("bitmapVIDForEleSpring15"),
+                      )
 
 finalElectrons = cms.EDFilter("PATElectronRefSelector",
     src = cms.InputTag("slimmedElectronsWithUserData"),
@@ -229,11 +281,12 @@ electronMVATTH= cms.EDProducer("EleBaseMVAValueMapProducer",
         LepGood_mvaIdFall17noIso = cms.string("userFloat('mvaFall17V1noIso')"),
     )
 )
-run2_miniAOD_80XLegacy.toModify(electronMVATTH.variables,
+for modifier in run2_miniAOD_80XLegacy, run2_nanoAOD_94X2016:
+  modifier.toModify(electronMVATTH.variables,
     LepGood_jetPtRatio = cms.string("?userCand('jetForLepJetVar').isNonnull()?min(userFloat('ptRatio'),1.5):1"),
-    LepGood_mvaIdSpring16HZZ = cms.string("userFloat('mvaSpring16HZZ')"),
+    LepGood_mvaIdSpring16HZZ = cms.string("userFloat('%s')" % ('mvaSpring16HZZ' if modifier == run2_miniAOD_80XLegacy else 'ElectronMVAEstimatorRun2Spring16HZZV1Values')),
     LepGood_mvaIdFall17noIso = None)
-run2_miniAOD_80XLegacy.toModify(electronMVATTH,
+  modifier.toModify(electronMVATTH,
     weightFile = "PhysicsTools/NanoAOD/data/el_BDTG.weights.xml",
     variablesOrder = ["LepGood_pt","LepGood_eta","LepGood_jetNDauChargedMVASel","LepGood_miniRelIsoCharged","LepGood_miniRelIsoNeutral","LepGood_jetPtRelv2","LepGood_jetPtRatio","LepGood_jetBTagCSV","LepGood_sip3d","LepGood_dxy","LepGood_dz","LepGood_mvaIdSpring16HZZ"])
 
@@ -285,7 +338,9 @@ electronTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
         miniPFRelIso_all = Var("userFloat('miniIsoAll')/pt",float,doc="mini PF relative isolation, total (with scaled rho*EA PU corrections)"),
         pfRelIso03_chg = Var("userFloat('PFIsoChg')/pt",float,doc="PF relative isolation dR=0.3, charged component"),
         pfRelIso03_all = Var("userFloat('PFIsoAll')/pt",float,doc="PF relative isolation dR=0.3, total (with rho*EA PU corrections)"),
+        jetRelIso = Var("?userCand('jetForLepJetVar').isNonnull()?(1./userFloat('ptRatio'))-1.:userFloat('PFIsoAll04')/pt",float,doc="Relative isolation in matched jet (1/ptRatio-1, pfRelIso04_all if no matched jet)",precision=8),
         dr03TkSumPt = Var("?pt>35?dr03TkSumPt():0",float,doc="Non-PF track isolation within a delta R cone of 0.3 with electron pt > 35 GeV",precision=8),
+        dr03TkSumPtHEEP = Var("?pt>35?userFloat('dr03TkSumPtHEEP'):0",float,doc="Non-PF track isolation within a delta R cone of 0.3 with electron pt > 35 GeV used in HEEP ID",precision=8),
         dr03EcalRecHitSumEt = Var("?pt>35?dr03EcalRecHitSumEt():0",float,doc="Non-PF Ecal isolation within a delta R cone of 0.3 with electron pt > 35 GeV",precision=8),
         dr03HcalDepth1TowerSumEt = Var("?pt>35?dr03HcalDepth1TowerSumEt():0",float,doc="Non-PF Hcal isolation within a delta R cone of 0.3 with electron pt > 35 GeV",precision=8),
         hoe = Var("hadronicOverEm()",float,doc="H over E",precision=8),
@@ -299,14 +354,58 @@ electronTable = cms.EDProducer("SimpleCandidateFlatTableProducer",
     ),
 )
 # scale and smearing only when available
-for modifier in run2_nanoAOD_94XMiniAODv1, run2_nanoAOD_94XMiniAODv2:
+for modifier in run2_nanoAOD_94X2016,:
     modifier.toModify(electronTable.variables,
         pt = Var("pt*userFloat('ecalTrkEnergyPostCorr')/userFloat('ecalTrkEnergyPreCorr')", float, precision=-1, doc="p_{T}"),
         energyErr = Var("userFloat('ecalTrkEnergyErrPostCorr')", float, precision=6, doc="energy error of the cluster-track combination"),
         eCorr = Var("userFloat('ecalTrkEnergyPostCorr')/userFloat('ecalTrkEnergyPreCorr')", float, doc="ratio of the calibrated energy/miniaod energy"),
     )
-run2_miniAOD_80XLegacy.toModify(electronTable.variables,
+
+#the94X miniAOD V2 had a bug in the scale and smearing for electrons in the E/p comb
+#therefore we redo it but but we need use a new name for the userFloat as we cant override existing userfloats
+#for technical reasons
+for modifier in run2_nanoAOD_94XMiniAODv1,run2_nanoAOD_94XMiniAODv2,:
+    modifier.toModify(electronTable.variables,            
+        pt = Var("pt*userFloat('ecalTrkEnergyPostCorrNew')/userFloat('ecalTrkEnergyPreCorrNew')", float, precision=-1, doc="p_{T}"),
+        energyErr = Var("userFloat('ecalTrkEnergyErrPostCorrNew')", float, precision=6, doc="energy error of the cluster-track combination"),
+        eCorr = Var("userFloat('ecalTrkEnergyPostCorrNew')/userFloat('ecalTrkEnergyPreCorrNew')", float, doc="ratio of the calibrated energy/miniaod energy"),
+)
+
+run2_nanoAOD_94X2016.toModify(electronTable.variables,
+    jetRelIso = Var("(1./userFloat('ptRatio'))-1.",float,doc="Relative isolation in matched jet (1/ptRatio-1, 0 if no matched jet (2016 definition))",precision=8),
+    cutBased = Var("userInt('cutbasedID_veto')+userInt('cutbasedID_loose')+userInt('cutbasedID_medium')+userInt('cutbasedID_tight')",int,doc="cut-based Summer16 ID (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)"),
+    cutBased_Fall17_V1 = Var("electronID('cutBasedElectronID-Fall17-94X-V1-veto')+electronID('cutBasedElectronID-Fall17-94X-V1-loose')+electronID('cutBasedElectronID-Fall17-94X-V1-medium')+electronID('cutBasedElectronID-Fall17-94X-V1-tight')",int,doc="cut-based Fall17 ID (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)"),
     cutBased_HLTPreSel = Var("userInt('cutbasedID_HLT')",int,doc="cut-based HLT pre-selection ID"),
+    cutBased_HEEP = Var("electronID('heepElectronID-HEEPV70')",bool,doc="cut-based HEEP ID"),
+    cutBased_Spring15 = Var("userInt('cutbasedID_Spring15_veto')+userInt('cutbasedID_Spring15_loose')+userInt('cutbasedID_Spring15_medium')+userInt('cutbasedID_Spring15_tight')",int,doc="cut-based Spring15 ID (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)"),
+    mvaSpring16GP = Var("userFloat('ElectronMVAEstimatorRun2Spring16GeneralPurposeV1Values')",float,doc="MVA Spring16 general-purpose ID score"),
+    mvaSpring16GP_WP80 = Var("electronID('mvaEleID-Spring16-GeneralPurpose-V1-wp80')",bool,doc="MVA Spring16 general-purpose ID WP80"),
+    mvaSpring16GP_WP90 = Var("electronID('mvaEleID-Spring16-GeneralPurpose-V1-wp90')",bool,doc="MVA Spring16 general-purpose ID WP90"),
+    mvaSpring16HZZ = Var("userFloat('ElectronMVAEstimatorRun2Spring16HZZV1Values')",float,doc="MVA Spring16 HZZ ID score"),
+    mvaSpring16HZZ_WPL = Var("electronID('mvaEleID-Spring16-HZZ-V1-wpLoose')",bool,doc="MVA Spring16 HZZ ID loose WP"),
+    mvaFall17V1Iso = Var("userFloat('ElectronMVAEstimatorRun2Fall17IsoV1Values')",float,doc="MVA Fall17 V1 Iso ID score"),
+    mvaFall17V1Iso_WP80 = Var("electronID('mvaEleID-Fall17-iso-V1-wp80')",bool,doc="MVA Fall17 V1 Iso ID WP80"),
+    mvaFall17V1Iso_WP90 = Var("electronID('mvaEleID-Fall17-iso-V1-wp90')",bool,doc="MVA Fall17 V1 Iso ID WP90"),
+    mvaFall17V1Iso_WPL = Var("electronID('mvaEleID-Fall17-iso-V1-wpLoose')",bool,doc="MVA Fall17 V1 Iso ID loose WP"),
+    mvaFall17V1noIso = Var("userFloat('ElectronMVAEstimatorRun2Fall17NoIsoV1Values')",float,doc="MVA Fall17 V1 noIso ID score"),
+    mvaFall17V1noIso_WP80 = Var("electronID('mvaEleID-Fall17-noIso-V1-wp80')",bool,doc="MVA Fall17 V1 noIso ID WP80"),
+    mvaFall17V1noIso_WP90 = Var("electronID('mvaEleID-Fall17-noIso-V1-wp90')",bool,doc="MVA Fall17 V1 noIso ID WP90"),
+    mvaFall17V1noIso_WPL = Var("electronID('mvaEleID-Fall17-noIso-V1-wpLoose')",bool,doc="MVA Fall17 V1 noIso ID loose WP"),
+    mvaFall17V2Iso = None,
+    mvaFall17V2Iso_WP80 = None,
+    mvaFall17V2Iso_WP90 = None,
+    mvaFall17V2Iso_WPL = None,
+    mvaFall17V2noIso = None,
+    mvaFall17V2noIso_WP80 = None,
+    mvaFall17V2noIso_WP90 = None,
+    mvaFall17V2noIso_WPL = None,
+    vidNestedWPBitmapSpring15 = Var("userInt('VIDNestedWPBitmapSpring15')",int,doc=_bitmapVIDForEleSpring15_docstring),
+)
+run2_miniAOD_80XLegacy.toModify(electronTable.variables,
+    jetRelIso = Var("(1./userFloat('ptRatio'))-1.",float,doc="Relative isolation in matched jet (1/ptRatio-1, 0 if no matched jet (2016 definition))",precision=8),
+    cutBased = Var("userInt('cutbasedID_veto')+userInt('cutbasedID_loose')+userInt('cutbasedID_medium')+userInt('cutbasedID_tight')",int,doc="cut-based Summer16 ID (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)"),
+    cutBased_HLTPreSel = Var("userInt('cutbasedID_HLT')",int,doc="cut-based HLT pre-selection ID"),
+    cutBased_Spring15 = Var("userInt('cutbasedID_Spring15_veto')+userInt('cutbasedID_Spring15_loose')+userInt('cutbasedID_Spring15_medium')+userInt('cutbasedID_Spring15_tight')",int,doc="cut-based Spring15 ID (0:fail, 1:veto, 2:loose, 3:medium, 4:tight)"),
     mvaSpring16GP = Var("userFloat('mvaSpring16GP')",float,doc="MVA general-purpose ID score"),
     mvaSpring16GP_WP80 = Var("userInt('mvaSpring16GP_WP80')",bool,doc="MVA general-purpose ID WP80"),
     mvaSpring16GP_WP90 = Var("userInt('mvaSpring16GP_WP90')",bool,doc="MVA general-purpose ID WP90"),
@@ -332,6 +431,7 @@ run2_miniAOD_80XLegacy.toModify(electronTable.variables,
     mvaFall17V2noIso_WPL = None,
 
     cutBased_Fall17_V1 = None,
+    vidNestedWPBitmapSpring15 = Var("userInt('VIDNestedWPBitmapSpring15')",int,doc=_bitmapVIDForEleSpring15_docstring),
 
     pt = Var("pt*userFloat('eCorr')",  float, precision=-1, doc="p_{T} after energy correction & smearing"),
     energyErr = Var("p4Error('P4_COMBINATION')*userFloat('eCorr')",float,doc="energy error of the cluster-track combination",precision=6),
@@ -359,7 +459,7 @@ electronMCTable = cms.EDProducer("CandMCMatchTableProducer",
     docString = cms.string("MC matching to status==1 electrons or photons"),
 )
 
-electronSequence = cms.Sequence(heepIDVarValueMaps + egmGsfElectronIDSequence + bitmapVIDForEle + isoForEle + ptRatioRelForEle + slimmedElectronsWithUserData + finalElectrons)
+electronSequence = cms.Sequence(bitmapVIDForEle + isoForEle + ptRatioRelForEle + slimmedElectronsWithUserData + finalElectrons)
 electronTables = cms.Sequence (electronMVATTH + electronTable)
 electronMC = cms.Sequence(electronsMCMatchForTable + electronMCTable)
 
@@ -367,10 +467,14 @@ _withUpdate_sequence = cms.Sequence(slimmedElectronsUpdated + electronSequence.c
 run2_nanoAOD_92X.toReplaceWith(electronSequence, _withUpdate_sequence)
 
 _withUpdateAnd80XScale_sequence = _withUpdate_sequence.copy()
-_withUpdateAnd80XScale_sequence.replace(slimmedElectronsWithUserData, calibratedPatElectrons80X + energyCorrForEle80X + slimmedElectronsWithUserData)
+_withUpdateAnd80XScale_sequence.replace(slimmedElectronsWithUserData, calibratedPatElectrons80X + energyCorrForEle80X + bitmapVIDForEleSpring15 + slimmedElectronsWithUserData)
 run2_miniAOD_80XLegacy.toReplaceWith(electronSequence, _withUpdateAnd80XScale_sequence)
 
-_with94Xv1Scale_sequence = electronSequence.copy()
-_with94Xv1Scale_sequence.replace(slimmedElectronsWithUserData, calibratedPatElectrons94Xv1 + slimmedElectronsWithUserData)
-run2_nanoAOD_94XMiniAODv1.toReplaceWith(electronSequence, _with94Xv1Scale_sequence)
+_with94XScale_sequence = electronSequence.copy()
+_with94XScale_sequence.replace(slimmedElectronsWithUserData, calibratedPatElectrons94X + slimmedElectronsWithUserData)
+run2_nanoAOD_94XMiniAODv1.toReplaceWith(electronSequence, _with94XScale_sequence)
+run2_nanoAOD_94XMiniAODv2.toReplaceWith(electronSequence, _with94XScale_sequence)
 
+_with_bitmapVIDForEleSpring15_sequence = electronSequence.copy()
+_with_bitmapVIDForEleSpring15_sequence.replace(slimmedElectronsWithUserData, bitmapVIDForEleSpring15 + slimmedElectronsWithUserData)
+run2_nanoAOD_94X2016.toReplaceWith(electronSequence, _with_bitmapVIDForEleSpring15_sequence)

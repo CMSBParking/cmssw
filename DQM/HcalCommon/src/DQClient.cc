@@ -13,11 +13,12 @@ namespace hcaldqm
 		_name = name;
 	}
 
-	/* virtual */ void DQClient::beginRun(edm::Run const& r,
+	void DQClient::beginRun(edm::Run const& r,
 		edm::EventSetup const& es)
 	{
 		//	TEMPORARY
 		_vhashFEDs.clear(); _vcdaqEids.clear();
+		_vhashCrates.clear();
 
 		//	get various FED lists
 		edm::ESHandle<HcalDbService> dbs;
@@ -55,13 +56,10 @@ namespace hcaldqm
 			}
 
 			//	get FEDs registered @cDAQ
-			edm::eventsetup::EventSetupRecordKey recordKey(
-				edm::eventsetup::EventSetupRecordKey::TypeTag::findType(
-					"RunInfoRcd"));
-			if (es.find(recordKey))
+                        if (auto runInfoRec = es.tryToGet<RunInfoRcd>())
 			{
 				edm::ESHandle<RunInfo> ri;
-				es.get<RunInfoRcd>().get(ri);
+                                runInfoRec->get(ri);
 				std::vector<int> vfeds=ri->m_fed_in;
 				for (std::vector<int>::const_iterator it=vfeds.begin();
 					it!=vfeds.end(); ++it)
@@ -89,8 +87,16 @@ namespace hcaldqm
 			}
 		}
 
-		//	get the Channel Quality masks
+		// Initialize channel quality masks, but do not load (changed for 10_4_X, moving to LS granularity)
 		_xQuality.initialize(hashfunctions::fDChannel);
+	}
+	
+	void DQClient::beginLuminosityBlock(DQMStore::IBooker&,
+		DQMStore::IGetter&, edm::LuminosityBlock const& lb,
+		edm::EventSetup const& es)
+	{
+		//	get the Channel Quality masks
+		_xQuality.reset();
 		edm::ESHandle<HcalChannelQuality> hcq;
 		es.get<HcalChannelQualityRcd>().get("withTopo", hcq);
 		const HcalChannelQuality *cq = hcq.product();
@@ -112,7 +118,7 @@ namespace hcaldqm
 		}
 	}
 
-	/* virtual */ void DQClient::endLuminosityBlock(DQMStore::IBooker&,
+	void DQClient::endLuminosityBlock(DQMStore::IBooker&,
 		DQMStore::IGetter&, edm::LuminosityBlock const& lb,
 		edm::EventSetup const&)
 	{
@@ -122,7 +128,7 @@ namespace hcaldqm
 			_maxProcessedLS=_currentLS;
 	}
 
-	/* virtual */ std::vector<flag::Flag> DQClient::endJob(DQMStore::IBooker&,
+	std::vector<flag::Flag> DQClient::endJob(DQMStore::IBooker&,
 		DQMStore::IGetter&)
 	{
 		return std::vector<flag::Flag>();

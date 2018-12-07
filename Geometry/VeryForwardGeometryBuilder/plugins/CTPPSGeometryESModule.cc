@@ -105,30 +105,32 @@ CTPPSGeometryESModule::applyAlignments( const edm::ESHandle<DetGeomDesc>& idealG
     buffer.pop_front();
     bufferNew.pop_front();
 
-    const std::string name = pD->name().name();
+    const std::string name = pD->name();
 
     // Is it sensor? If yes, apply full sensor alignments
     if ( name == DDD_TOTEM_RP_SENSOR_NAME
       || name == DDD_CTPPS_DIAMONDS_SEGMENT_NAME
       || name == DDD_CTPPS_UFSD_SEGMENT_NAME
-      || name == DDD_CTPPS_PIXELS_SENSOR_NAME ) {
+      || name == DDD_CTPPS_PIXELS_SENSOR_NAME
+      || std::regex_match( name, std::regex( DDD_TOTEM_TIMING_SENSOR_TMPL ) )) {
       unsigned int plId = pD->geographicalID();
 
       if ( alignments.isValid() ) {
         const RPAlignmentCorrectionData& ac = alignments->getFullSensorCorrection( plId );
-        pD->ApplyAlignment( ac );
+        pD->applyAlignment( ac );
       }
     }
 
     // Is it RP box? If yes, apply RP alignments
     if ( name == DDD_TOTEM_RP_RP_NAME
       || name == DDD_CTPPS_DIAMONDS_RP_NAME
-      || name == DDD_CTPPS_PIXELS_RP_NAME ) {
+      || name == DDD_CTPPS_PIXELS_RP_NAME
+      || name == DDD_TOTEM_TIMING_RP_NAME ) {
       unsigned int rpId = pD->geographicalID();
 
       if ( alignments.isValid() ) {
         const RPAlignmentCorrectionData& ac = alignments->getRPCorrection( rpId );
-        pD->ApplyAlignment( ac );
+        pD->applyAlignment( ac );
       }
     }
 

@@ -47,16 +47,11 @@ void FastLineRecognition::Cluster::add(const Point *p1, const Point *p2, double 
   if (add2)
     contents.push_back(p2);
 
-  // update sums, mins and maxs
+  // update sums
   Saw += a*w;
   Sbw += b*w;
   Sw += w;
   S1 += 1.;
-
-  min_a = min(a, min_a);
-  min_b = min(b, min_b);
-  max_a = max(a, max_a);
-  max_b = max(b, max_b);
 }
 
 //----------------------------------------------------------------------------------------------------
@@ -84,7 +79,7 @@ FastLineRecognition::GeomData FastLineRecognition::getGeomData(unsigned int id)
 
   // calculate it
   CLHEP::Hep3Vector d = geometry->localToGlobalDirection(id, CLHEP::Hep3Vector(0., 1., 0.));
-  DDTranslation c = geometry->getSensor(TotemRPDetId(id))->translation();
+  DetGeomDesc::Translation c = geometry->getSensor(TotemRPDetId(id))->translation();
   GeomData gd;
   gd.z = c.z();
   gd.s = d.x()*c.x() + d.y()*c.y();

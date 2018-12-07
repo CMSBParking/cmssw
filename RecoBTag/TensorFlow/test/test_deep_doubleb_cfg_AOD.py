@@ -1,3 +1,4 @@
+from __future__ import print_function
 import FWCore.ParameterSet.Config as cms
 from PhysicsTools.PatAlgos.tools.helpers import getPatAlgosToolsTask
 import six
@@ -71,8 +72,8 @@ addJetCollection(
    jetCorrections = ('AK8PFPuppi', cms.vstring(['L1FastJet', 'L2Relative', 'L3Absolute']), 'Type-2'),
    btagDiscriminators = [
       'pfBoostedDoubleSecondaryVertexAK8BJetTags',
-      'pfDeepDoubleBJetTags:probQ', 
-      'pfDeepDoubleBJetTags:probH', 
+      'pfDeepDoubleBvLJetTags:probQCD', 
+      'pfDeepDoubleBvLJetTags:probHbb', 
       ]
    )
 
@@ -110,10 +111,10 @@ process.out.outputCommands.append('keep *_inclusiveCandidateSecondaryVertices*_*
 process.out.outputCommands.append('keep *_selectedPatJets*_*_*')
 process.out.outputCommands.append('keep *_selectedUpdatedPatJets*_*_*')
 process.out.outputCommands.append('keep *_pfBoostedDoubleSVAK8TagInfos*_*_*')
-process.out.outputCommands.append('keep *_pfDeepDoubleBTagInfos*_*_*')
+process.out.outputCommands.append('keep *_pfDeepDoubleXTagInfos*_*_*')
 process.out.outputCommands.append('keep *_updatedPatJets*_*_*')
 
-print process.out.outputCommands
+print(process.out.outputCommands)
 process.out.fileName = 'test_deep_doubleb_AODSIM.root'
 
 #                                         ##
