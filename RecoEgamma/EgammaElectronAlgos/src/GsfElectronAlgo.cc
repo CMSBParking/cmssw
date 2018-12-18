@@ -495,10 +495,12 @@ bool GsfElectronAlgo::ElectronData::calculateTSOS
   if (!outTSOS.isValid()) return false;
 
   //    TrajectoryStateOnSurface seedTSOS
-  seedTSOS = mtsTransform->extrapolatedState(outTSOS,
-           GlobalPoint(superClusterRef->seed()->position().x(),
-               superClusterRef->seed()->position().y(),
-                 superClusterRef->seed()->position().z()));
+  if ( superClusterRef.isNonnull() ) {
+    seedTSOS = mtsTransform->extrapolatedState(outTSOS,
+					       GlobalPoint(superClusterRef->seed()->position().x(),
+							   superClusterRef->seed()->position().y(),
+							   superClusterRef->seed()->position().z()));
+  }
   if (!seedTSOS.isValid()) seedTSOS=outTSOS;
 
   // at scl
