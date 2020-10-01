@@ -131,7 +131,7 @@ void EGRegressionModifierV3::modifyObject(reco::GsfElectron& ele) const
   if( superClus->seed()->seed().det() == DetId::Forward ) return;
 
   // do not apply corrections in case of missing info (slimmed MiniAOD electrons)
-  if(!superClus->clusters().isAvailable()) return; 
+  //if(!superClus->clusters().isAvailable()) return; 
 
   //check if fbrem is filled as its needed for E/p combination so abort if its set to the default value 
   //this will be the case for <5 (or current cuts) for miniAOD electrons
