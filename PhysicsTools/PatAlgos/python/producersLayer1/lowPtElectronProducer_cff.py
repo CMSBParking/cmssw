@@ -6,6 +6,14 @@ from PhysicsTools.PatAlgos.producersLayer1.electronProducer_cfi import *
 
 sourceElectrons = cms.InputTag("lowPtGsfElectrons")
 
+lowPtGsfElectronsPostRegression = _lowPtGsfElectrons.clone(
+    previousGsfElectronsTag = sourceElectrons
+)
+
+sourceElectrons = cms.InputTag("lowPtGsfElectronsPostRegression")
+
+lowPtGsfLinks.electrons = sourceElectrons
+
 lowPtElectronMatch = electronMatch.clone(
    src = sourceElectrons,
 )
@@ -82,7 +90,7 @@ fastSim.toModify(patLowPtElectrons, embedTrack = False)
 from Configuration.Eras.Modifier_run2_miniAOD_80XLegacy_cff import run2_miniAOD_80XLegacy
 from Configuration.Eras.Modifier_run2_miniAOD_94XFall17_cff import run2_miniAOD_94XFall17
 (run2_miniAOD_80XLegacy | run2_miniAOD_94XFall17).toModify(patLowPtElectrons,
-                                                           electronSource = "gedGsfElectrons",
+                                                           electronSource = sourceElectrons,
                                                            genParticleMatch = "electronMatch"
                                                            )
 
