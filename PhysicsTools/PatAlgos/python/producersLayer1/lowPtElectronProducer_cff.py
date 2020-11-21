@@ -69,27 +69,29 @@ from Configuration.Eras.Modifier_run2_miniAOD_94XFall17_cff import run2_miniAOD_
                                                            genParticleMatch = "electronMatch"
                                                            )
 
-# Schedule rekeying of seed BDT ValueMaps by reco::GsfElectron for run2_miniAOD_UL
+# For run2_miniAOD_UL ...
 from Configuration.ProcessModifiers.run2_miniAOD_UL_cff import run2_miniAOD_UL
-from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronSeedValueMaps_cff import rekeyLowPtGsfElectronSeedValueMaps
-from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronID_cfi import lowPtGsfElectronID
 makePatLowPtElectronsTask_ = makePatLowPtElectronsTask.copy()
+
+# (1) rekey seed BDT ValueMaps by reco::GsfElectron
+from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronSeedValueMaps_cff import rekeyLowPtGsfElectronSeedValueMaps
 makePatLowPtElectronsTask_.add(rekeyLowPtGsfElectronSeedValueMaps)
+
+# (2) rerun ID
+from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronID_cfi import lowPtGsfElectronID
 makePatLowPtElectronsTask_.add(lowPtGsfElectronID)
-run2_miniAOD_UL.toReplaceWith(makePatLowPtElectronsTask,makePatLowPtElectronsTask_)
 
-# Apply the energy regression for UL
-from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronFinalizer_cfi import lowPtGsfElectrons as _lowPtGsfElectrons
-lowPtGsfElectronsPostRegression = _lowPtGsfElectrons.clone(
-    previousGsfElectronsTag = sourceElectrons
-)
+# (3) apply energy regression
+from RecoEgamma.EgammaElectronProducers.lowPtGsfElectronFinalizer_cfi import lowPtGsfElectrons
+lowPtGsfElectronsPostRegression = lowPtGsfElectrons.clone(previousGsfElectronsTag = "lowPtGsfElectrons")
+makePatLowPtElectronsTask_.add(lowPtGsfElectronsPostRegression)
 
-from Configuration.ProcessModifiers.run2_miniAOD_UL_cff import run2_miniAOD_UL
-sourceElectronsPostRegression = cms.InputTag("lowPtGsfElectronsPostRegression")
-run2_miniAOD_UL.toModify(lowPtGsfLinks, electrons = sourceElectronsPostRegression)
+# Switch to energy-regressed electrons as input
+sourceElectronsPostRegression = "lowPtGsfElectronsPostRegression"
 run2_miniAOD_UL.toModify(lowPtElectronMatch, src = sourceElectronsPostRegression)
 run2_miniAOD_UL.toModify(patLowPtElectrons, electronSource = sourceElectronsPostRegression)
 run2_miniAOD_UL.toModify(rekeyLowPtGsfElectronSeedValueMaps, gsfElectrons = sourceElectronsPostRegression)
+run2_miniAOD_UL.toModify(lowPtGsfElectronID, electrons = sourceElectronsPostRegression)
 
-makePatLowPtElectronsTaskWithRegression = cms.Task(lowPtGsfElectronsPostRegression, makePatLowPtElectronsTask.copy())
-run2_miniAOD_UL.toReplaceWith(makePatLowPtElectronsTask, makePatLowPtElectronsTaskWithRegression)
+# Append to Task
+run2_miniAOD_UL.toReplaceWith(makePatLowPtElectronsTask,makePatLowPtElectronsTask_)
