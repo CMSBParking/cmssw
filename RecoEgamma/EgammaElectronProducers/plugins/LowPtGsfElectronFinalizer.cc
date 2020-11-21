@@ -42,13 +42,9 @@ void LowPtGsfElectronFinalizer::produce(edm::Event& event, const edm::EventSetup
   for (auto const& electron : event.get(previousGsfElectrons_)) {
     outputElectrons.emplace_back(electron);
     auto& newElectron = outputElectrons.back();
-
-    auto pre = newElectron.correctedEcalEnergyError();
     if (regression_) {
       regression_->modifyObject(newElectron);
     }
-    auto post = newElectron.correctedEcalEnergyError();
-    std::cout << pre << " -> " << post << std::endl;
   }
 
   // Emplace modified electrons to event
