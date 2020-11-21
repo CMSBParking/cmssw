@@ -3,10 +3,10 @@ import FWCore.ParameterSet.Config as cms
 from RecoEgamma.EgammaTools.regressionModifier_cfi import regressionModifier106XUL
 
 lowPtRegressionModifier = cms.PSet(
-    modifierName = cms.string('EGRegressionModifierV3'),       
+    modifierName = cms.string('EGRegressionModifierV3'),
     rhoTag = cms.InputTag('fixedGridRhoFastjetAllTmp'),
     useClosestToCentreSeedCrysDef = cms.bool(False),
-    maxRawEnergyForLowPtEBSigma = cms.double(-1), 
+    maxRawEnergyForLowPtEBSigma = cms.double(-1),
     maxRawEnergyForLowPtEESigma = cms.double(1200.),
     eleRegs = cms.PSet(
         ecalOnlyMean = cms.PSet(
@@ -51,7 +51,7 @@ lowPtRegressionModifier = cms.PSet(
                 rangeMaxLowEt = cms.double(0.5),
                 rangeMinHighEt = cms.double(0.0002),
                 rangeMaxHighEt = cms.double(0.5),
-                lowEtHighEtBoundary = cms.double(20.),  
+                lowEtHighEtBoundary = cms.double(20.),
                 forceHighEnergyTrainingIfSaturated = cms.bool(False),
                 ebLowEtForestName = cms.string('lowPtElectron_eb_ecalTrk_05To50_sigma'),
                 ebHighEtForestName = cms.string('lowPtElectron_eb_ecalTrk_05To50_sigma'),
@@ -61,7 +61,7 @@ lowPtRegressionModifier = cms.PSet(
             maxEcalEnergyForComb=cms.double(200.),
             minEOverPForComb=cms.double(0.025),
             maxEPDiffInSigmaForComb=cms.double(15.),
-            maxRelTrkMomErrForComb=cms.double(10.),                
+            maxRelTrkMomErrForComb=cms.double(10.),
             )
         ),
     # Let's just clone the photon configuration from the regular regression config, because the modifier expects
@@ -70,6 +70,6 @@ lowPtRegressionModifier = cms.PSet(
 )
 
 lowPtGsfElectrons = cms.EDProducer("LowPtGsfElectronFinalizer",
-                                 previousGsfElectronsTag = cms.InputTag("lowPtGsfElectronsPreRegression"),
-                                 regressionConfig = lowPtRegressionModifier,
-                                 )
+                                   previousGsfElectronsTag = cms.InputTag("lowPtGsfElectronsPreRegression"),
+                                   regressionConfig = lowPtRegressionModifier,
+)
