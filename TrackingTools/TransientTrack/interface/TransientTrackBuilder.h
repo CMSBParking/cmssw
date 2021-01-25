@@ -31,6 +31,7 @@ class TransientTrackBuilder {
     reco::TransientTrack build ( const reco::GsfTrackRef & p)  const;
 
     reco::TransientTrack buildfromGSF ( const reco::GsfTrackRef & p) const;
+    reco::TransientTrack buildfromReg ( const reco::GsfTrackRef & p, const math::XYZVector & regMomentum, const float & regERatio) const;
 
     reco::TransientTrack build ( const reco::CandidatePtr * p)  const;
     reco::TransientTrack build ( const reco::CandidatePtr & p)  const;

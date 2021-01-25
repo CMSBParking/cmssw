@@ -35,6 +35,8 @@ namespace reco {
 
     GsfTransientTrack( const GsfTrackRef & tk , const MagneticField* field, const edm::ESHandle<GlobalTrackingGeometry>& trackingGeometry, 
 		       const math::XYZVector& momVal, const int chVal);
+    GsfTransientTrack( const GsfTrackRef & tk , const MagneticField* field, const edm::ESHandle<GlobalTrackingGeometry>& trackingGeometry,
+                       const math::XYZVector& momVal, const int chVal, const float regERatio);
 
     GsfTransientTrack( const GsfTransientTrack & tt );
     
