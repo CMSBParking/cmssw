@@ -260,3 +260,8 @@ TransientTrackBuilder::build ( const edm::Handle<edm::View<Track> > & trkColl,
 TransientTrack TransientTrackBuilder::build (const FreeTrajectoryState & fts) const {
   return TransientTrack(new TransientTrackFromFTS(fts));
 }
+
+// https://github.com/CMSBParking/cmssw/commit/e7671ff172db18bc4ae613689af96521d424be01
+TransientTrack TransientTrackBuilder::buildfromReg ( const reco::GsfTrackRef & t, const math::XYZVector & regMomentum, const float & regERatio) const {
+  return TransientTrack(new GsfTransientTrack(t, theField, theTrackingGeometry, regMomentum, t->chargeMode(), regERatio));
+};
