@@ -217,6 +217,40 @@ TrajectoryStateClosestToBeamLine GsfTransientTrack::stateAtBeamLine() const
   return trajectoryStateClosestToBeamLine;
 }
 
+// https://github.com/CMSBParking/cmssw/commit/ed09e75b7f4427ef26d33c6f26c5fb52e8908da5
+GsfTransientTrack::GsfTransientTrack( const GsfTrackRef & tk , const MagneticField* field,
+				      const edm::ESHandle<GlobalTrackingGeometry>& tg, 
+				      const math::XYZVector& momVal, const int chVal):
+  GsfTrack(*tk),
+  tkr_(), hasTime(false), timeExt_(0.), dtErrorExt_(0.),
+  theField(field), initialTSOSAvailable(false),
+  initialTSCPAvailable(false), blStateAvailable(false), theTrackingGeometry(tg),
+  theTIPExtrapolator(AnalyticalPropagator(field, alongMomentum)){
+
+  Basic3DVector<float> pos (tk->referencePoint());
+  GlobalPoint gpos(pos);
+  Basic3DVector<float> mom (momVal);
+  GlobalVector gmom( mom);
+  TrackCharge tkCh(chVal);
+  GlobalTrajectoryParameters par( gpos, gmom, TrackCharge(tkCh), field);
+
+  reco::GsfTrack::CovarianceMatrixMode covMode = tk->covarianceMode();
+  reco::TrackBase::CovarianceMatrix covMean = tk->covariance();
+
+  AlgebraicSymMatrix55 covErr;
+  for (unsigned int iv1=0; iv1<reco::TrackBase::dimension; ++iv1){
+    for (unsigned int iv2=0; iv2<reco::TrackBase::dimension; ++iv2){
+
+      if(iv1<reco::GsfTrack::dimensionMode && iv2<reco::GsfTrack::dimensionMode)
+	covErr(iv1,iv2) = covMode(iv1,iv2);
+      else covErr(iv1,iv2) = covMean(iv1,iv2);
+    }
+  }
+  CurvilinearTrajectoryError err(covErr);
+
+  initialFTS = FreeTrajectoryState( par, err);
+}
+
 // https://github.com/CMSBParking/cmssw/commit/e7671ff172db18bc4ae613689af96521d424be01
 GsfTransientTrack::GsfTransientTrack( const GsfTrackRef & tk , const MagneticField* field,
 				      const edm::ESHandle<GlobalTrackingGeometry>& tg,

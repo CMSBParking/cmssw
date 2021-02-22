@@ -29,6 +29,9 @@ class TransientTrackBuilder {
     reco::TransientTrack build ( const reco::GsfTrackRef * p)  const;
     reco::TransientTrack build ( const reco::GsfTrackRef & p)  const;
 
+    // https://github.com/CMSBParking/cmssw/commit/ed09e75b7f4427ef26d33c6f26c5fb52e8908da5
+    reco::TransientTrack buildfromGSF ( const reco::GsfTrackRef & p) const;
+
     // https://github.com/CMSBParking/cmssw/commit/e7671ff172db18bc4ae613689af96521d424be01
     reco::TransientTrack buildfromReg ( const reco::GsfTrackRef & p, const math::XYZVector & regMomentum, const float & regERatio) const;
 

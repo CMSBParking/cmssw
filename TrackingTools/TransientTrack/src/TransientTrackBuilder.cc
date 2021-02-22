@@ -261,6 +261,11 @@ TransientTrack TransientTrackBuilder::build (const FreeTrajectoryState & fts) co
   return TransientTrack(new TransientTrackFromFTS(fts));
 }
 
+// https://github.com/CMSBParking/cmssw/commit/ed09e75b7f4427ef26d33c6f26c5fb52e8908da5
+TransientTrack TransientTrackBuilder::buildfromGSF (const GsfTrackRef & t) const {
+  return TransientTrack(new GsfTransientTrack(t, theField, theTrackingGeometry, math::XYZVector(t->momentumMode()), t->chargeMode()));
+};
+
 // https://github.com/CMSBParking/cmssw/commit/e7671ff172db18bc4ae613689af96521d424be01
 TransientTrack TransientTrackBuilder::buildfromReg ( const reco::GsfTrackRef & t, const math::XYZVector & regMomentum, const float & regERatio) const {
   return TransientTrack(new GsfTransientTrack(t, theField, theTrackingGeometry, regMomentum, t->chargeMode(), regERatio));
