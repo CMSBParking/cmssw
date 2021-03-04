@@ -164,8 +164,8 @@ void EGRegressionModifierV3::modifyObject(reco::GsfElectron& ele) const
 
   const float corrEnergy = (rawEnergy + rawESEnergy)*ecalMeanCorr;
   const float corrEnergyErr = corrEnergy*ecalSigma;
-
-  ele.setCorrectedEcalEnergy(corrEnergy);
+  bool setEovP=false;
+  ele.setCorrectedEcalEnergy(corrEnergy, setEovP);
   ele.setCorrectedEcalEnergyError(corrEnergyErr);
 
   std::pair<float,float> combEnergyAndErr =  eleRegs_->epComb.combine(ele);
